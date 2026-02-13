@@ -11,7 +11,7 @@ keywords = ["gentoo", "portage", "ebuild", "pms", "metadata"]
 categories = ["parser-implementations", "development-tools"]
 
 [dependencies]
-portage-atom = "0.1.1"
+portage-atom = "0.3.0"
 winnow = "0.7"
 thiserror = "2"
 
