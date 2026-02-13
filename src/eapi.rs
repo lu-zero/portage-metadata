@@ -29,6 +29,10 @@ pub enum Eapi {
     Seven,
     /// EAPI 8 — `IDEPEND`, USE-conditional `PROPERTIES`/`RESTRICT`.
     Eight,
+    /// EAPI 9 — Same features as EAPI 8, plus selective URI restrictions.
+    ///
+    /// See [PMS 2](https://projects.gentoo.org/pms/latest/pms.html#eapis).
+    Nine,
 }
 
 impl Eapi {
@@ -102,6 +106,13 @@ impl Eapi {
     pub fn has_use_conditional_restrict(&self) -> bool {
         *self >= Eapi::Eight
     }
+
+    /// Whether this EAPI supports selective URI restrictions (`fetch+`/`mirror+` prefixes).
+    ///
+    /// Introduced in EAPI 8.
+    pub fn has_selective_uri_restrictions(&self) -> bool {
+        *self >= Eapi::Eight
+    }
 }
 
 impl fmt::Display for Eapi {
@@ -116,6 +127,7 @@ impl fmt::Display for Eapi {
             Eapi::Six => "6",
             Eapi::Seven => "7",
             Eapi::Eight => "8",
+            Eapi::Nine => "9",
         };
         f.write_str(n)
     }
@@ -135,6 +147,7 @@ impl FromStr for Eapi {
             "6" => Ok(Eapi::Six),
             "7" => Ok(Eapi::Seven),
             "8" => Ok(Eapi::Eight),
+            "9" => Ok(Eapi::Nine),
             _ => Err(Error::InvalidEapi(s.to_string())),
         }
     }
@@ -156,6 +169,7 @@ mod tests {
             ("6", Eapi::Six),
             ("7", Eapi::Seven),
             ("8", Eapi::Eight),
+            ("9", Eapi::Nine),
         ] {
             assert_eq!(s.parse::<Eapi>().unwrap(), expected);
         }
@@ -173,6 +187,7 @@ mod tests {
             Eapi::Six,
             Eapi::Seven,
             Eapi::Eight,
+            Eapi::Nine,
         ] {
             assert_eq!(eapi.to_string().parse::<Eapi>().unwrap(), eapi);
         }
@@ -180,7 +195,7 @@ mod tests {
 
     #[test]
     fn invalid_eapi() {
-        assert!("9".parse::<Eapi>().is_err());
+        assert!("10".parse::<Eapi>().is_err());
         assert!("".parse::<Eapi>().is_err());
         assert!("foo".parse::<Eapi>().is_err());
     }
@@ -189,6 +204,7 @@ mod tests {
     fn ordering() {
         assert!(Eapi::Zero < Eapi::Eight);
         assert!(Eapi::Seven < Eapi::Eight);
+        assert!(Eapi::Eight < Eapi::Nine);
         assert!(Eapi::Four > Eapi::Three);
     }
 
@@ -197,9 +213,11 @@ mod tests {
         assert!(!Eapi::Six.has_bdepend());
         assert!(Eapi::Seven.has_bdepend());
         assert!(Eapi::Eight.has_bdepend());
+        assert!(Eapi::Nine.has_bdepend());
 
         assert!(!Eapi::Seven.has_idepend());
         assert!(Eapi::Eight.has_idepend());
+        assert!(Eapi::Nine.has_idepend());
 
         assert!(!Eapi::Three.has_required_use());
         assert!(Eapi::Four.has_required_use());
@@ -224,5 +242,10 @@ mod tests {
 
         assert!(!Eapi::Seven.has_use_conditional_restrict());
         assert!(Eapi::Eight.has_use_conditional_restrict());
+        assert!(Eapi::Nine.has_use_conditional_restrict());
+
+        assert!(!Eapi::Seven.has_selective_uri_restrictions());
+        assert!(Eapi::Eight.has_selective_uri_restrictions());
+        assert!(Eapi::Nine.has_selective_uri_restrictions());
     }
 }
