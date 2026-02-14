@@ -16,7 +16,7 @@ use crate::src_uri::SrcUriEntry;
 /// Represents a single file from `metadata/md5-cache/<category>/<package>-<version>`.
 /// Contains the full ebuild metadata plus cache-specific fields (`md5`, `eclasses`).
 ///
-/// See [PMS 14.2](https://projects.gentoo.org/pms/latest/pms.html#mddict-cache-file-format).
+/// See [PMS 14.2](https://projects.gentoo.org/pms/9/pms.html#mddict-cache-file-format).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CacheEntry {
     /// The ebuild metadata.

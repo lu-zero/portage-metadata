@@ -8,7 +8,7 @@ use crate::error::{Error, Result};
 /// Flags may be prefixed with `+` (enabled by default) or `-` (disabled by
 /// default) in the `IUSE` variable.
 ///
-/// See [PMS 7.2](https://projects.gentoo.org/pms/latest/pms.html#mandatory-ebuilddefined-variables).
+/// See [PMS 7.2](https://projects.gentoo.org/pms/9/pms.html#mandatory-ebuilddefined-variables).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IUseDefault {
     /// `+flag` — enabled by default.
@@ -19,7 +19,7 @@ pub enum IUseDefault {
 
 /// A single USE flag entry from the `IUSE` variable.
 ///
-/// See [PMS 7.2](https://projects.gentoo.org/pms/latest/pms.html#mandatory-ebuilddefined-variables).
+/// See [PMS 7.2](https://projects.gentoo.org/pms/9/pms.html#mandatory-ebuilddefined-variables).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IUse {
     /// The USE flag name (without prefix).
