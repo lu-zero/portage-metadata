@@ -12,10 +12,11 @@ use crate::error::{Error, Result};
 ///
 /// `SRC_URI` specifies the source files needed to build a package. Entries
 /// may be plain URIs, renamed URIs (EAPI 2+: `url -> filename`), or
-/// USE-conditional groups.
+/// USE-conditional groups. EAPI 8+ supports selective URI restrictions
+/// with `fetch+` and `mirror+` prefixes.
 ///
-/// See [PMS 7.3.2](https://projects.gentoo.org/pms/latest/pms.html#srcuri)
-/// and [PMS 8.2](https://projects.gentoo.org/pms/latest/pms.html#dependency-specification-format).
+/// See [PMS 7.3.2](https://projects.gentoo.org/pms/9/pms.html#srcuri)
+/// and [PMS 8.2](https://projects.gentoo.org/pms/9/pms.html#dependency-specification-format).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SrcUriEntry {
     /// A plain URI. The filename is derived from the last path component.
@@ -24,6 +25,8 @@ pub enum SrcUriEntry {
         url: String,
         /// The target filename (last path component of the URL).
         filename: String,
+        /// URI restriction prefix (EAPI 8+): `None`, `Some("fetch")`, or `Some("mirror")`.
+        restriction: Option<String>,
     },
     /// A renamed URI (EAPI 2+): `url -> target`.
     Renamed {
@@ -31,6 +34,8 @@ pub enum SrcUriEntry {
         url: String,
         /// The local filename to save as.
         target: String,
+        /// URI restriction prefix (EAPI 8+): `None`, `Some("fetch")`, or `Some("mirror")`.
+        restriction: Option<String>,
     },
     /// `flag? ( entries... )` or `!flag? ( entries... )` conditional group.
     UseConditional {
@@ -79,8 +84,24 @@ fn filename_from_url(url: &str) -> String {
 impl fmt::Display for SrcUriEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SrcUriEntry::Uri { url, .. } => write!(f, "{url}"),
-            SrcUriEntry::Renamed { url, target } => write!(f, "{url} -> {target}"),
+            SrcUriEntry::Uri {
+                url, restriction, ..
+            } => {
+                if let Some(prefix) = restriction {
+                    write!(f, "{prefix}+")?;
+                }
+                write!(f, "{url}")
+            }
+            SrcUriEntry::Renamed {
+                url,
+                target,
+                restriction,
+            } => {
+                if let Some(prefix) = restriction {
+                    write!(f, "{prefix}+")?;
+                }
+                write!(f, "{url} -> {target}")
+            }
             SrcUriEntry::UseConditional {
                 flag,
                 negated,
@@ -150,6 +171,13 @@ fn parse_uri<'s>() -> impl Parser<&'s str, String, ErrMode<ContextError>> {
     take_while(1.., is_uri_char).map(|s: &str| s.to_string())
 }
 
+fn parse_restriction_prefix<'s>() -> impl Parser<&'s str, Option<String>, ErrMode<ContextError>> {
+    opt(alt((
+        "fetch+".map(|_| "fetch".to_string()),
+        "mirror+".map(|_| "mirror".to_string()),
+    )))
+}
+
 fn parse_filename<'s>() -> impl Parser<&'s str, String, ErrMode<ContextError>> {
     take_while(1.., is_filename_char).map(|s: &str| s.to_string())
 }
@@ -157,15 +185,24 @@ fn parse_filename<'s>() -> impl Parser<&'s str, String, ErrMode<ContextError>> {
 /// Parse a single URI, optionally followed by `-> filename`.
 fn parse_uri_entry<'s>() -> impl Parser<&'s str, SrcUriEntry, ErrMode<ContextError>> {
     (
+        parse_restriction_prefix(),
         parse_uri(),
         opt(preceded((multispace0, "->", multispace0), parse_filename())),
     )
-        .map(|(url, rename)| {
+        .map(|(restriction, url, rename)| {
             if let Some(target) = rename {
-                SrcUriEntry::Renamed { url, target }
+                SrcUriEntry::Renamed {
+                    url,
+                    target,
+                    restriction,
+                }
             } else {
                 let filename = filename_from_url(&url);
-                SrcUriEntry::Uri { url, filename }
+                SrcUriEntry::Uri {
+                    url,
+                    filename,
+                    restriction,
+                }
             }
         })
 }
@@ -236,9 +273,14 @@ mod tests {
         let entries = SrcUriEntry::parse("https://example.com/foo-1.0.tar.gz").unwrap();
         assert_eq!(entries.len(), 1);
         match &entries[0] {
-            SrcUriEntry::Uri { url, filename } => {
+            SrcUriEntry::Uri {
+                url,
+                filename,
+                restriction,
+            } => {
                 assert_eq!(url, "https://example.com/foo-1.0.tar.gz");
                 assert_eq!(filename, "foo-1.0.tar.gz");
+                assert_eq!(restriction, &None);
             }
             _ => panic!("expected Uri"),
         }
@@ -250,9 +292,64 @@ mod tests {
             SrcUriEntry::parse("https://github.com/archive/v1.0.tar.gz -> foo-1.0.tar.gz").unwrap();
         assert_eq!(entries.len(), 1);
         match &entries[0] {
-            SrcUriEntry::Renamed { url, target } => {
+            SrcUriEntry::Renamed {
+                url,
+                target,
+                restriction,
+            } => {
                 assert_eq!(url, "https://github.com/archive/v1.0.tar.gz");
                 assert_eq!(target, "foo-1.0.tar.gz");
+                assert_eq!(restriction, &None);
+            }
+            _ => panic!("expected Renamed"),
+        }
+    }
+
+    #[test]
+    fn parse_fetch_restricted_uri() {
+        let entries = SrcUriEntry::parse("fetch+https://example.com/foo-1.0.tar.gz").unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Uri {
+                url, restriction, ..
+            } => {
+                assert_eq!(url, "https://example.com/foo-1.0.tar.gz");
+                assert_eq!(restriction, &Some("fetch".to_string()));
+            }
+            _ => panic!("expected Uri"),
+        }
+    }
+
+    #[test]
+    fn parse_mirror_restricted_uri() {
+        let entries = SrcUriEntry::parse("mirror+https://example.com/foo-1.0.tar.gz").unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Uri {
+                url, restriction, ..
+            } => {
+                assert_eq!(url, "https://example.com/foo-1.0.tar.gz");
+                assert_eq!(restriction, &Some("mirror".to_string()));
+            }
+            _ => panic!("expected Uri"),
+        }
+    }
+
+    #[test]
+    fn parse_restricted_renamed_uri() {
+        let entries =
+            SrcUriEntry::parse("fetch+https://github.com/archive/v1.0.tar.gz -> foo-1.0.tar.gz")
+                .unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Renamed {
+                url,
+                target,
+                restriction,
+            } => {
+                assert_eq!(url, "https://github.com/archive/v1.0.tar.gz");
+                assert_eq!(target, "foo-1.0.tar.gz");
+                assert_eq!(restriction, &Some("fetch".to_string()));
             }
             _ => panic!("expected Renamed"),
         }
@@ -319,6 +416,7 @@ mod tests {
         let entry = SrcUriEntry::Uri {
             url: "https://example.com/foo.tar.gz".to_string(),
             filename: "foo.tar.gz".to_string(),
+            restriction: None,
         };
         assert_eq!(entry.to_string(), "https://example.com/foo.tar.gz");
     }
@@ -328,6 +426,7 @@ mod tests {
         let entry = SrcUriEntry::Renamed {
             url: "https://example.com/v1.tar.gz".to_string(),
             target: "foo-1.tar.gz".to_string(),
+            restriction: None,
         };
         assert_eq!(
             entry.to_string(),
@@ -346,5 +445,23 @@ mod tests {
             }
             _ => panic!("expected Uri"),
         }
+    }
+
+    #[test]
+    fn display_restricted_uri() {
+        let entries = SrcUriEntry::parse("fetch+https://example.com/foo.tar.gz").unwrap();
+        let displayed = entries[0].to_string();
+        assert_eq!(displayed, "fetch+https://example.com/foo.tar.gz");
+    }
+
+    #[test]
+    fn display_restricted_renamed_uri() {
+        let entries =
+            SrcUriEntry::parse("mirror+https://example.com/foo.tar.gz -> bar.tar.gz").unwrap();
+        let displayed = entries[0].to_string();
+        assert_eq!(
+            displayed,
+            "mirror+https://example.com/foo.tar.gz -> bar.tar.gz"
+        );
     }
 }
