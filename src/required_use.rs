@@ -13,7 +13,7 @@ use crate::error::{Error, Result};
 /// `REQUIRED_USE` constrains which combinations of USE flags are valid.
 /// Introduced in EAPI 4. The `AtMostOne` (`??`) operator was added in EAPI 5.
 ///
-/// See [PMS 7.3.4](https://projects.gentoo.org/pms/latest/pms.html#use-state-constraints).
+/// See [PMS 7.3.4](https://projects.gentoo.org/pms/9/pms.html#use-state-constraints).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequiredUseExpr {
     /// A single USE flag (possibly negated with `!`).

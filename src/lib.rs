@@ -3,7 +3,7 @@
 //! This crate provides types for representing ebuild metadata and a
 //! parser for the `md5-cache` format used by Gentoo's package manager.
 //!
-//! [PMS]: https://projects.gentoo.org/pms/latest/pms.html
+//! [PMS]: https://projects.gentoo.org/pms/9/pms.html
 //!
 //! # Overview
 //!

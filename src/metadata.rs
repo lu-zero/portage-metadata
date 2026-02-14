@@ -15,22 +15,22 @@ use crate::src_uri::SrcUriEntry;
 /// extracts from an ebuild. Mandatory fields (`eapi`, `description`, `slot`)
 /// are always present; optional fields use `Option` or `Vec`.
 ///
-/// See [PMS 7.2](https://projects.gentoo.org/pms/latest/pms.html#mandatory-ebuilddefined-variables).
+/// See [PMS 7.2](https://projects.gentoo.org/pms/9/pms.html#mandatory-ebuilddefined-variables).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EbuildMetadata {
     /// EAPI version.
     ///
-    /// See [PMS 7.3.1](https://projects.gentoo.org/pms/latest/pms.html#eapi).
+    /// See [PMS 7.3.1](https://projects.gentoo.org/pms/9/pms.html#eapi).
     pub eapi: Eapi,
 
     /// Package description (mandatory).
     ///
-    /// See [PMS 7.2](https://projects.gentoo.org/pms/latest/pms.html#mandatory-ebuilddefined-variables).
+    /// See [PMS 7.2](https://projects.gentoo.org/pms/9/pms.html#mandatory-ebuilddefined-variables).
     pub description: String,
 
     /// Package slot (mandatory).
     ///
-    /// See [PMS 7.2](https://projects.gentoo.org/pms/latest/pms.html#mandatory-ebuilddefined-variables).
+    /// See [PMS 7.2](https://projects.gentoo.org/pms/9/pms.html#mandatory-ebuilddefined-variables).
     pub slot: Slot,
 
     /// Homepage URL(s).
@@ -59,7 +59,7 @@ pub struct EbuildMetadata {
 
     /// Build-time dependencies (`DEPEND`).
     ///
-    /// See [PMS 8.1](https://projects.gentoo.org/pms/latest/pms.html#dependency-classes).
+    /// See [PMS 8.1](https://projects.gentoo.org/pms/9/pms.html#dependency-classes).
     pub depend: Vec<DepEntry>,
 
     /// Runtime dependencies (`RDEPEND`).

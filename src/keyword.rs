@@ -5,7 +5,7 @@ use crate::error::{Error, Result};
 
 /// Stability level for an architecture keyword.
 ///
-/// See [PMS 7.3.3](https://projects.gentoo.org/pms/latest/pms.html#keywords).
+/// See [PMS 7.3.3](https://projects.gentoo.org/pms/9/pms.html#keywords).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Stability {
     /// The package is stable on this architecture (e.g. `amd64`).
@@ -22,7 +22,7 @@ pub enum Stability {
 ///
 /// Each keyword consists of an architecture name and a stability level.
 ///
-/// See [PMS 7.3.3](https://projects.gentoo.org/pms/latest/pms.html#keywords).
+/// See [PMS 7.3.3](https://projects.gentoo.org/pms/9/pms.html#keywords).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Keyword {
     /// Architecture name (e.g. `amd64`, `arm64`, `x86`).

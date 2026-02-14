@@ -8,7 +8,7 @@ use crate::error::{Error, Result};
 /// Phase functions are called by the package manager in a defined order
 /// during package build and installation.
 ///
-/// See [PMS 9](https://projects.gentoo.org/pms/latest/pms.html#ebuilddefined-functions).
+/// See [PMS 9](https://projects.gentoo.org/pms/9/pms.html#ebuilddefined-functions).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Phase {
     /// `pkg_pretend` — pre-flight checks (EAPI 4+).

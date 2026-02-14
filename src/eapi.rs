@@ -8,7 +8,7 @@ use crate::error::{Error, Result};
 /// The EAPI controls which features and behaviours are available to an ebuild.
 /// Each EAPI builds on the previous one, adding or modifying capabilities.
 ///
-/// See [PMS 2](https://projects.gentoo.org/pms/latest/pms.html#eapis).
+/// See [PMS 2](https://projects.gentoo.org/pms/9/pms.html#eapis).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Eapi {
     /// EAPI 0 — base (legacy).
@@ -31,7 +31,7 @@ pub enum Eapi {
     Eight,
     /// EAPI 9 — Same features as EAPI 8, plus selective URI restrictions.
     ///
-    /// See [PMS 2](https://projects.gentoo.org/pms/latest/pms.html#eapis).
+    /// See [PMS 2](https://projects.gentoo.org/pms/9/pms.html#eapis).
     Nine,
 }
 

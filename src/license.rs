@@ -13,8 +13,8 @@ use crate::error::{Error, Result};
 /// The `LICENSE` variable uses a dependency-specification-like grammar
 /// with `||` (any-of) groups and USE-conditional groups.
 ///
-/// See [PMS 7.2](https://projects.gentoo.org/pms/latest/pms.html#mandatory-ebuilddefined-variables)
-/// and [PMS 8.2](https://projects.gentoo.org/pms/latest/pms.html#dependency-specification-format).
+/// See [PMS 7.2](https://projects.gentoo.org/pms/9/pms.html#mandatory-ebuilddefined-variables)
+/// and [PMS 8.2](https://projects.gentoo.org/pms/9/pms.html#dependency-specification-format).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LicenseExpr {
     /// A single license identifier (e.g. `MIT`, `GPL-2+`).

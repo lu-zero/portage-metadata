@@ -13,7 +13,7 @@ use crate::error::{Error, Result};
 /// Before EAPI 8, these are simple space-separated token lists.
 /// In EAPI 8, they support USE-conditional groups (`flag? ( ... )`).
 ///
-/// See [PMS 7.3.6](https://projects.gentoo.org/pms/latest/pms.html#restrict).
+/// See [PMS 7.3.6](https://projects.gentoo.org/pms/9/pms.html#restrict).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RestrictExpr {
     /// A single restriction/property token (e.g. `mirror`, `test`, `live`).
