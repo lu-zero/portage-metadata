@@ -7,7 +7,7 @@
 [![dependency status](https://deps.rs/repo/github/lu-zero/portage-metadata/status.svg)](https://deps.rs/repo/github/lu-zero/portage-metadata)
 [![docs.rs](https://docs.rs/portage-metadata/badge.svg)](https://docs.rs/portage-metadata)
 
-A Rust library for reading and writing Gentoo ebuild metadata cache files, based on the [Package Manager Specification (PMS)](https://projects.gentoo.org/pms/latest/pms.html).
+A Rust library for reading and writing Gentoo ebuild metadata cache files, based on the [Package Manager Specification (PMS) 9](https://projects.gentoo.org/pms/9/pms.html).
 
 > **Warning**: This codebase was largely AI-generated (slop-coded) and has not
 > yet been thoroughly audited. It may contain bugs, incomplete PMS coverage, or
@@ -104,19 +104,20 @@ assert_eq!(phases.len(), 3);
 
 ## PMS Compliance
 
-This library implements:
+This library implements **Package Manager Specification (PMS) 9** with support for:
 
 - **Metadata Cache** (PMS Chapter 14) — md5-dict `KEY=VALUE` format
 - **Ebuild Variables** (PMS Chapter 7) — EAPI, SLOT, DESCRIPTION, KEYWORDS, IUSE, SRC_URI, LICENSE, REQUIRED_USE, RESTRICT, PROPERTIES, DEPEND, RDEPEND, BDEPEND, PDEPEND, IDEPEND
 - **Dependency Specification** (PMS Chapter 8) — via portage-atom
 - **Phase Functions** (PMS Chapter 9) — DEFINED_PHASES parsing
 - **EAPI Features** (PMS Chapter 6) — feature queries per EAPI level
+- **Selective URI Restrictions** (PMS 7.3.2, EAPI 8+) — `fetch+`/`mirror+` prefixes in SRC_URI
 
 ## Related Projects
 
 - [portage-atom](https://crates.io/crates/portage-atom) — Portage package atom parser
 - [pkgcraft](https://crates.io/crates/pkgcraft) — Full-featured Gentoo package manager library
-- [PMS](https://projects.gentoo.org/pms/) — Package Manager Specification
+- [PMS 9](https://projects.gentoo.org/pms/9/pms.html) — Package Manager Specification
 - [Portage](https://wiki.gentoo.org/wiki/Portage) — Reference Gentoo package manager
 
 ## License
