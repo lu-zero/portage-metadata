@@ -190,7 +190,7 @@ mod tests {
                 assert_eq!(entries.len(), 1);
                 assert_eq!(entries[0], RestrictExpr::Token("test".to_string()));
             }
-            _ => panic!("expected UseConditional"),
+            _ => unreachable!("expected UseConditional"),
         }
     }
 

@@ -282,7 +282,7 @@ mod tests {
                 assert_eq!(filename, "foo-1.0.tar.gz");
                 assert_eq!(restriction, &None);
             }
-            _ => panic!("expected Uri"),
+            _ => unreachable!("expected Uri"),
         }
     }
 
@@ -301,7 +301,7 @@ mod tests {
                 assert_eq!(target, "foo-1.0.tar.gz");
                 assert_eq!(restriction, &None);
             }
-            _ => panic!("expected Renamed"),
+            _ => unreachable!("expected Renamed"),
         }
     }
 
@@ -316,7 +316,7 @@ mod tests {
                 assert_eq!(url, "https://example.com/foo-1.0.tar.gz");
                 assert_eq!(restriction, &Some("fetch".to_string()));
             }
-            _ => panic!("expected Uri"),
+            _ => unreachable!("expected Uri"),
         }
     }
 
@@ -331,7 +331,7 @@ mod tests {
                 assert_eq!(url, "https://example.com/foo-1.0.tar.gz");
                 assert_eq!(restriction, &Some("mirror".to_string()));
             }
-            _ => panic!("expected Uri"),
+            _ => unreachable!("expected Uri"),
         }
     }
 
@@ -351,7 +351,7 @@ mod tests {
                 assert_eq!(target, "foo-1.0.tar.gz");
                 assert_eq!(restriction, &Some("fetch".to_string()));
             }
-            _ => panic!("expected Renamed"),
+            _ => unreachable!("expected Renamed"),
         }
     }
 
@@ -369,7 +369,7 @@ mod tests {
                 assert!(!negated);
                 assert_eq!(entries.len(), 1);
             }
-            _ => panic!("expected UseConditional"),
+            _ => unreachable!("expected UseConditional"),
         }
     }
 
@@ -382,7 +382,7 @@ mod tests {
                 assert_eq!(flag, "doc");
                 assert!(negated);
             }
-            _ => panic!("expected UseConditional"),
+            _ => unreachable!("expected UseConditional"),
         }
     }
 
@@ -443,7 +443,7 @@ mod tests {
             SrcUriEntry::Uri { filename, .. } => {
                 assert_eq!(filename, "llvmorg-10.0.0-rc1.tar.gz");
             }
-            _ => panic!("expected Uri"),
+            _ => unreachable!("expected Uri"),
         }
     }
 

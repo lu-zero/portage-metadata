@@ -278,7 +278,7 @@ mod tests {
             RequiredUseExpr::AnyOf(entries) => {
                 assert_eq!(entries.len(), 2);
             }
-            _ => panic!("expected AnyOf"),
+            _ => unreachable!("expected AnyOf"),
         }
     }
 
@@ -289,7 +289,7 @@ mod tests {
             RequiredUseExpr::ExactlyOne(entries) => {
                 assert_eq!(entries.len(), 3);
             }
-            _ => panic!("expected ExactlyOne"),
+            _ => unreachable!("expected ExactlyOne"),
         }
     }
 
@@ -300,7 +300,7 @@ mod tests {
             RequiredUseExpr::AtMostOne(entries) => {
                 assert_eq!(entries.len(), 2);
             }
-            _ => panic!("expected AtMostOne"),
+            _ => unreachable!("expected AtMostOne"),
         }
     }
 
@@ -317,7 +317,7 @@ mod tests {
                 assert!(!negated);
                 assert_eq!(entries.len(), 1);
             }
-            _ => panic!("expected UseConditional"),
+            _ => unreachable!("expected UseConditional"),
         }
     }
 
@@ -330,7 +330,7 @@ mod tests {
             RequiredUseExpr::AnyOf(entries) => {
                 assert_eq!(entries.len(), 2);
             }
-            _ => panic!("expected AnyOf"),
+            _ => unreachable!("expected AnyOf"),
         }
     }
 

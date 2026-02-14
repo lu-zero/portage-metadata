@@ -211,7 +211,7 @@ mod tests {
                 assert_eq!(entries[0], LicenseExpr::License("MIT".to_string()));
                 assert_eq!(entries[1], LicenseExpr::License("BSD-2".to_string()));
             }
-            _ => panic!("expected All"),
+            _ => unreachable!("expected All"),
         }
     }
 
@@ -222,7 +222,7 @@ mod tests {
             LicenseExpr::AnyOf(entries) => {
                 assert_eq!(entries.len(), 2);
             }
-            _ => panic!("expected AnyOf"),
+            _ => unreachable!("expected AnyOf"),
         }
     }
 
@@ -239,7 +239,7 @@ mod tests {
                 assert!(!negated);
                 assert_eq!(entries.len(), 1);
             }
-            _ => panic!("expected UseConditional"),
+            _ => unreachable!("expected UseConditional"),
         }
     }
 
@@ -255,7 +255,7 @@ mod tests {
                 );
                 assert_eq!(entries[1], LicenseExpr::License("UoI-NCSA".to_string()));
             }
-            _ => panic!("expected All"),
+            _ => unreachable!("expected All"),
         }
     }
 
