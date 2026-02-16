@@ -112,11 +112,16 @@ fn is_license_char(c: char) -> bool {
 }
 
 fn is_flag_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+'
+    c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+' || c == '@'
 }
 
 fn parse_license_name<'s>() -> impl Parser<&'s str, LicenseExpr, ErrMode<ContextError>> {
-    take_while(1.., is_license_char).map(|s: &str| LicenseExpr::License(s.to_string()))
+    take_while(1.., is_license_char)
+        .verify(|name: &str| {
+            // Validate license name according to PMS 3.1.7
+            !name.starts_with(['-', '.', '+'])
+        })
+        .map(|name: &str| LicenseExpr::License(name.to_string()))
 }
 
 fn parse_any_of<'s>() -> impl Parser<&'s str, LicenseExpr, ErrMode<ContextError>> {
@@ -286,5 +291,52 @@ mod tests {
         let expr = LicenseExpr::parse(input).unwrap();
         let reparsed = LicenseExpr::parse(&expr.to_string()).unwrap();
         assert_eq!(expr, reparsed);
+    }
+
+    #[test]
+    fn invalid_license_starting_with_dot() {
+        assert!(LicenseExpr::parse(".license").is_err());
+    }
+
+    #[test]
+    fn invalid_license_starting_with_hyphen() {
+        assert!(LicenseExpr::parse("-GPL").is_err());
+    }
+
+    #[test]
+    fn invalid_license_starting_with_plus() {
+        assert!(LicenseExpr::parse("+MIT").is_err());
+    }
+
+    #[test]
+    fn valid_license_with_underscore() {
+        let expr = LicenseExpr::parse("MIT_with_underscore").unwrap();
+        assert_eq!(
+            expr,
+            LicenseExpr::License("MIT_with_underscore".to_string())
+        );
+    }
+
+    #[test]
+    fn valid_license_with_hyphen_not_first() {
+        let expr = LicenseExpr::parse("GPL-2+").unwrap();
+        assert_eq!(expr, LicenseExpr::License("GPL-2+".to_string()));
+    }
+
+    #[test]
+    fn valid_use_conditional_with_at() {
+        let expr = LicenseExpr::parse("flag@name? ( MIT )").unwrap();
+        match expr {
+            LicenseExpr::UseConditional {
+                flag,
+                negated,
+                entries,
+            } => {
+                assert_eq!(flag, "flag@name");
+                assert!(!negated);
+                assert_eq!(entries.len(), 1);
+            }
+            _ => unreachable!("expected UseConditional"),
+        }
     }
 }

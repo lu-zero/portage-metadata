@@ -124,7 +124,7 @@ fn fmt_entries(f: &mut fmt::Formatter, entries: &[RequiredUseExpr]) -> fmt::Resu
 // Winnow parsers
 
 fn is_flag_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+'
+    c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+' || c == '@'
 }
 
 fn parse_any_of(input: &mut &str) -> ModalResult<RequiredUseExpr> {
@@ -169,6 +169,12 @@ fn parse_at_most_one(input: &mut &str) -> ModalResult<RequiredUseExpr> {
 fn parse_use_conditional(input: &mut &str) -> ModalResult<RequiredUseExpr> {
     let negated = opt('!').parse_next(input)?.is_some();
     let flag: String = take_while(1.., is_flag_char)
+        .verify(|name: &str| {
+            // Validate flag name according to PMS 3.1.4
+            name.chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphanumeric())
+        })
         .map(|s: &str| s.to_string())
         .parse_next(input)?;
     '?'.parse_next(input)?;
@@ -191,7 +197,14 @@ fn parse_use_conditional(input: &mut &str) -> ModalResult<RequiredUseExpr> {
 fn parse_flag<'s>() -> impl Parser<&'s str, RequiredUseExpr, ErrMode<ContextError>> {
     (
         opt('!'),
-        take_while(1.., is_flag_char).map(|s: &str| s.to_string()),
+        take_while(1.., is_flag_char)
+            .verify(|name: &str| {
+                // Validate flag name according to PMS 3.1.4
+                name.chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphanumeric())
+            })
+            .map(|s: &str| s.to_string()),
     )
         .map(|(neg, name)| RequiredUseExpr::Flag {
             name,
@@ -370,5 +383,49 @@ mod tests {
         let expr = RequiredUseExpr::parse(input).unwrap();
         let reparsed = RequiredUseExpr::parse(&expr.to_string()).unwrap();
         assert_eq!(expr, reparsed);
+    }
+
+    #[test]
+    fn invalid_flag_starting_with_hyphen() {
+        assert!(RequiredUseExpr::parse("-flag").is_err());
+    }
+
+    #[test]
+    fn invalid_flag_starting_with_at() {
+        assert!(RequiredUseExpr::parse("@flag").is_err());
+    }
+
+    #[test]
+    fn valid_flag_with_at_character() {
+        let expr = RequiredUseExpr::parse("flag@name").unwrap();
+        assert_eq!(
+            expr,
+            RequiredUseExpr::Flag {
+                name: "flag@name".to_string(),
+                negated: false,
+            }
+        );
+    }
+
+    #[test]
+    fn valid_use_conditional_with_at() {
+        let expr = RequiredUseExpr::parse("flag@name? ( ssl )").unwrap();
+        match expr {
+            RequiredUseExpr::UseConditional {
+                flag,
+                negated,
+                entries,
+            } => {
+                assert_eq!(flag, "flag@name");
+                assert!(!negated);
+                assert_eq!(entries.len(), 1);
+            }
+            _ => unreachable!("expected UseConditional"),
+        }
+    }
+
+    #[test]
+    fn invalid_use_conditional_flag_starting_with_hyphen() {
+        assert!(RequiredUseExpr::parse("-flag? ( ssl )").is_err());
     }
 }
