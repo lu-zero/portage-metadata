@@ -69,8 +69,17 @@ impl FromStr for Keyword {
             });
         }
 
+        // Helper function to validate architecture names according to PMS 3.1.8
+        fn is_valid_arch_name(name: &str) -> bool {
+            !name.is_empty()
+                && !name.starts_with('-')
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        }
+
         if let Some(arch) = s.strip_prefix('~') {
-            if arch.is_empty() {
+            if arch.is_empty() || !is_valid_arch_name(arch) {
                 return Err(Error::InvalidKeyword(s.to_string()));
             }
             Ok(Keyword {
@@ -78,7 +87,7 @@ impl FromStr for Keyword {
                 stability: Stability::Testing,
             })
         } else if let Some(arch) = s.strip_prefix('-') {
-            if arch.is_empty() {
+            if arch.is_empty() || !is_valid_arch_name(arch) {
                 return Err(Error::InvalidKeyword(s.to_string()));
             }
             Ok(Keyword {
@@ -86,6 +95,9 @@ impl FromStr for Keyword {
                 stability: Stability::Disabled,
             })
         } else {
+            if !is_valid_arch_name(s) {
+                return Err(Error::InvalidKeyword(s.to_string()));
+            }
             Ok(Keyword {
                 arch: s.to_string(),
                 stability: Stability::Stable,
@@ -174,5 +186,51 @@ mod tests {
     #[test]
     fn invalid_bare_dash() {
         assert!("-".parse::<Keyword>().is_err());
+    }
+
+    #[test]
+    fn invalid_arch_with_exclamation() {
+        assert!("~foo!bar".parse::<Keyword>().is_err());
+    }
+
+    #[test]
+    fn test_arch_name_validation() {
+        // Test the validation function directly
+        fn is_valid_arch_name(name: &str) -> bool {
+            !name.is_empty()
+                && !name.starts_with('-')
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        }
+
+        // Valid names
+        assert!(is_valid_arch_name("amd64"));
+        assert!(is_valid_arch_name("arm_64"));
+        assert!(is_valid_arch_name("arm-64"));
+
+        // Invalid names
+        assert!(!is_valid_arch_name("-arch")); // starts with hyphen
+        assert!(!is_valid_arch_name("")); // empty
+        assert!(!is_valid_arch_name("arch!name")); // invalid character
+    }
+
+    #[test]
+    fn invalid_arch_with_invalid_chars() {
+        assert!("foo@bar".parse::<Keyword>().is_err());
+    }
+
+    #[test]
+    fn valid_arch_with_underscore() {
+        let kw: Keyword = "arm_64".parse().unwrap();
+        assert_eq!(kw.arch, "arm_64");
+        assert_eq!(kw.stability, Stability::Stable);
+    }
+
+    #[test]
+    fn valid_arch_with_hyphen_not_first() {
+        let kw: Keyword = "arm-64".parse().unwrap();
+        assert_eq!(kw.arch, "arm-64");
+        assert_eq!(kw.stability, Stability::Stable);
     }
 }

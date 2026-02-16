@@ -61,8 +61,20 @@ impl FromStr for IUse {
             return Err(Error::InvalidIUse("empty IUSE entry".to_string()));
         }
 
+        // Helper function to validate USE flag names according to PMS 3.1.4
+        fn is_valid_use_flag_name(name: &str) -> bool {
+            !name.is_empty()
+                && name
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphanumeric())
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '@' | '-'))
+        }
+
         if let Some(name) = s.strip_prefix('+') {
-            if name.is_empty() {
+            if name.is_empty() || !is_valid_use_flag_name(name) {
                 return Err(Error::InvalidIUse(s.to_string()));
             }
             Ok(IUse {
@@ -70,7 +82,7 @@ impl FromStr for IUse {
                 default: Some(IUseDefault::Enabled),
             })
         } else if let Some(name) = s.strip_prefix('-') {
-            if name.is_empty() {
+            if name.is_empty() || !is_valid_use_flag_name(name) {
                 return Err(Error::InvalidIUse(s.to_string()));
             }
             Ok(IUse {
@@ -78,6 +90,9 @@ impl FromStr for IUse {
                 default: Some(IUseDefault::Disabled),
             })
         } else {
+            if !is_valid_use_flag_name(s) {
+                return Err(Error::InvalidIUse(s.to_string()));
+            }
             Ok(IUse {
                 name: s.to_string(),
                 default: None,
@@ -160,6 +175,58 @@ mod tests {
     fn complex_flag_names() {
         let flag: IUse = "python_targets_python3_11".parse().unwrap();
         assert_eq!(flag.name, "python_targets_python3_11");
+        assert_eq!(flag.default, None);
+    }
+
+    #[test]
+    fn test_flag_name_validation() {
+        // Test the validation function directly
+        fn is_valid_use_flag_name(name: &str) -> bool {
+            !name.is_empty()
+                && name
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphanumeric())
+                && name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '@' | '-'))
+        }
+
+        // Valid names
+        assert!(is_valid_use_flag_name("ssl"));
+        assert!(is_valid_use_flag_name("flag_name"));
+        assert!(is_valid_use_flag_name("flag-name"));
+        assert!(is_valid_use_flag_name("flag@name"));
+        assert!(is_valid_use_flag_name("flag+name"));
+
+        // Invalid names
+        assert!(!is_valid_use_flag_name("-flag")); // starts with hyphen
+        assert!(!is_valid_use_flag_name("@flag")); // starts with @
+        assert!(!is_valid_use_flag_name("")); // empty
+        assert!(!is_valid_use_flag_name("flag!name")); // invalid character
+    }
+
+    #[test]
+    fn invalid_flag_starting_with_at() {
+        assert!("@flag".parse::<IUse>().is_err());
+    }
+
+    #[test]
+    fn invalid_flag_with_exclamation() {
+        assert!("foo!bar".parse::<IUse>().is_err());
+    }
+
+    #[test]
+    fn valid_flag_with_at_character() {
+        let flag: IUse = "flag@name".parse().unwrap();
+        assert_eq!(flag.name, "flag@name");
+        assert_eq!(flag.default, None);
+    }
+
+    #[test]
+    fn valid_flag_with_plus_character() {
+        let flag: IUse = "flag+name".parse().unwrap();
+        assert_eq!(flag.name, "flag+name");
         assert_eq!(flag.default, None);
     }
 }
