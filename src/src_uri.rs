@@ -164,7 +164,9 @@ fn is_uri_char(c: char) -> bool {
 fn is_filename_char(c: char) -> bool {
     // '{' and '}' are permitted for rename targets where the ebuild author
     // wrote {P} instead of ${P}; portage accepts such filenames in practice.
-    c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+' | '{' | '}')
+    // '@' appears in real rename targets (e.g. sec-keys/openpgp-keys-kernel
+    // uses `-> gregkh@kernel.org.key`).
+    c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+' | '{' | '}' | '@')
 }
 
 fn is_flag_char(c: char) -> bool {
