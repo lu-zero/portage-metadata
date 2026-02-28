@@ -488,6 +488,237 @@ mod tests {
         }
     }
 
+    // ── Real-world tests sourced from the Gentoo tree ──────────────────
+
+    #[test]
+    fn mirror_uri_gnu() {
+        // sys-libs/glibc-2.38-r13
+        let entries = SrcUriEntry::parse("mirror://gnu/glibc/glibc-2.38.tar.xz").unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Uri { url, filename, .. } => {
+                assert_eq!(url, "mirror://gnu/glibc/glibc-2.38.tar.xz");
+                assert_eq!(filename, "glibc-2.38.tar.xz");
+            }
+            _ => unreachable!("expected Uri"),
+        }
+    }
+
+    #[test]
+    fn mirror_uri_debian() {
+        // x11-plugins/asclock-2.0.12-r5
+        let entries =
+            SrcUriEntry::parse("mirror://debian/pool/main/a/asclock/asclock_2.0.12.orig.tar.gz")
+                .unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Uri { url, filename, .. } => {
+                assert_eq!(
+                    url,
+                    "mirror://debian/pool/main/a/asclock/asclock_2.0.12.orig.tar.gz"
+                );
+                assert_eq!(filename, "asclock_2.0.12.orig.tar.gz");
+            }
+            _ => unreachable!("expected Uri"),
+        }
+    }
+
+    #[test]
+    fn bare_filename_no_protocol() {
+        // sci-chemistry/vmd-1.9.4_alpha57-r4
+        let entries = SrcUriEntry::parse(
+            "vmd-1.9.4a57.src.tar.gz fetch+https://dev.gentoo.org/~pacho/vmd/vmd-1.9.4_alpha57-gentoo-patches.tar.xz",
+        ).unwrap();
+        assert_eq!(entries.len(), 2);
+        match &entries[0] {
+            SrcUriEntry::Uri {
+                url,
+                filename,
+                restriction,
+            } => {
+                assert_eq!(url, "vmd-1.9.4a57.src.tar.gz");
+                assert_eq!(filename, "vmd-1.9.4a57.src.tar.gz");
+                assert_eq!(restriction, &None);
+            }
+            _ => unreachable!("expected Uri"),
+        }
+        match &entries[1] {
+            SrcUriEntry::Uri {
+                url, restriction, ..
+            } => {
+                assert_eq!(
+                    url,
+                    "https://dev.gentoo.org/~pacho/vmd/vmd-1.9.4_alpha57-gentoo-patches.tar.xz"
+                );
+                assert_eq!(restriction, &Some("fetch".to_string()));
+            }
+            _ => unreachable!("expected Uri"),
+        }
+    }
+
+    #[test]
+    fn nested_use_conditionals_stellarium() {
+        // sci-astronomy/stellarium-25.4 (simplified)
+        let input = "https://example.com/stellarium-25.4.tar.xz \
+                      deep-sky? ( https://example.com/catalog-3.22.dat -> stellarium-dso-catalog-3.22.dat \
+                      verify-sig? ( https://example.com/catalog-3.22.dat.asc -> stellarium-dso-catalog-3.22.dat.asc ) )";
+        let entries = SrcUriEntry::parse(input).unwrap();
+        assert_eq!(entries.len(), 2);
+        match &entries[1] {
+            SrcUriEntry::UseConditional {
+                flag,
+                negated,
+                entries: inner,
+            } => {
+                assert_eq!(flag, "deep-sky");
+                assert!(!negated);
+                assert_eq!(inner.len(), 2);
+                // The second inner entry is itself a nested conditional
+                match &inner[1] {
+                    SrcUriEntry::UseConditional {
+                        flag,
+                        negated,
+                        entries: nested,
+                    } => {
+                        assert_eq!(flag, "verify-sig");
+                        assert!(!negated);
+                        assert_eq!(nested.len(), 1);
+                    }
+                    _ => unreachable!("expected nested UseConditional"),
+                }
+            }
+            _ => unreachable!("expected UseConditional"),
+        }
+    }
+
+    #[test]
+    fn nested_negated_conditional_culmus() {
+        // media-fonts/culmus-0.120-r6 (simplified)
+        let input = "ancient? ( !fontforge? ( https://example.com/AncientSemiticFonts.tgz ) \
+             fontforge? ( https://example.com/AncientSemiticFonts-src.tgz ) )";
+        let entries = SrcUriEntry::parse(input).unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::UseConditional {
+                flag,
+                entries: inner,
+                ..
+            } => {
+                assert_eq!(flag, "ancient");
+                assert_eq!(inner.len(), 2);
+                match &inner[0] {
+                    SrcUriEntry::UseConditional { flag, negated, .. } => {
+                        assert_eq!(flag, "fontforge");
+                        assert!(negated);
+                    }
+                    _ => unreachable!("expected negated UseConditional"),
+                }
+            }
+            _ => unreachable!("expected UseConditional"),
+        }
+    }
+
+    #[test]
+    fn url_encoded_chars_in_uri() {
+        // games-arcade/opensonic-0.1.4-r4
+        let entries = SrcUriEntry::parse(
+            "https://downloads.sourceforge.net/project/opensnc/Open%20Sonic/0.1.4/opensnc-src-0.1.4.tar.gz",
+        ).unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Uri { url, filename, .. } => {
+                assert_eq!(
+                    url,
+                    "https://downloads.sourceforge.net/project/opensnc/Open%20Sonic/0.1.4/opensnc-src-0.1.4.tar.gz"
+                );
+                assert_eq!(filename, "opensnc-src-0.1.4.tar.gz");
+            }
+            _ => unreachable!("expected Uri"),
+        }
+    }
+
+    #[test]
+    fn uri_with_query_string_and_rename() {
+        // sec-keys/openpgp-keys-dwmw2-20230504
+        let entries = SrcUriEntry::parse(
+            "https://kernel.org/.well-known/openpgpkey/hu/163ux8fk184q7f9reyj4huqggwnwb6w7?l=dwmw2 -> dwmw2@kernel.org.key",
+        ).unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Renamed { url, target, .. } => {
+                assert_eq!(
+                    url,
+                    "https://kernel.org/.well-known/openpgpkey/hu/163ux8fk184q7f9reyj4huqggwnwb6w7?l=dwmw2"
+                );
+                assert_eq!(target, "dwmw2@kernel.org.key");
+            }
+            _ => unreachable!("expected Renamed"),
+        }
+    }
+
+    #[test]
+    fn rename_target_with_at_sign() {
+        // sec-keys/openpgp-keys-thomasdickey-20260204
+        let entries = SrcUriEntry::parse(
+            "https://invisible-island.net/public/dickey@invisible-island.net-rsa3072.asc -> openpgp-keys-thomasdickey-20260204-dickey@invisible-island.net-rsa3072.asc",
+        ).unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Renamed { target, .. } => {
+                assert_eq!(
+                    target,
+                    "openpgp-keys-thomasdickey-20260204-dickey@invisible-island.net-rsa3072.asc"
+                );
+            }
+            _ => unreachable!("expected Renamed"),
+        }
+    }
+
+    #[test]
+    fn multiple_rename_targets_with_at_sign() {
+        // sec-keys/openpgp-keys-kernel-20250702
+        let input = "https://kernel.org/.well-known/openpgpkey/hu/e3n9xnm94c5apezqnj1pmrfuaoyfm8cf?l=gregkh -> gregkh@kernel.org.key \
+                      https://kernel.org/.well-known/openpgpkey/hu/pf113mfnx1f3eb1yiwhsipa91xfc7o4x?l=torvalds -> torvalds@kernel.org.key";
+        let entries = SrcUriEntry::parse(input).unwrap();
+        assert_eq!(entries.len(), 2);
+        match &entries[0] {
+            SrcUriEntry::Renamed { target, .. } => {
+                assert_eq!(target, "gregkh@kernel.org.key");
+            }
+            _ => unreachable!("expected Renamed"),
+        }
+        match &entries[1] {
+            SrcUriEntry::Renamed { target, .. } => {
+                assert_eq!(target, "torvalds@kernel.org.key");
+            }
+            _ => unreachable!("expected Renamed"),
+        }
+    }
+
+    #[test]
+    fn real_world_mirror_plus_prefix() {
+        // games-arcade/opensonic-0.1.4-r4
+        let entries = SrcUriEntry::parse(
+            "https://downloads.sourceforge.net/project/opensnc/Open%20Sonic/0.1.4/opensnc-src-0.1.4.tar.gz mirror+https://dev.gentoo.org/~ionen/distfiles/loggcompat-4.4.2.tar.gz",
+        ).unwrap();
+        assert_eq!(entries.len(), 2);
+        match &entries[1] {
+            SrcUriEntry::Uri {
+                url,
+                filename,
+                restriction,
+            } => {
+                assert_eq!(
+                    url,
+                    "https://dev.gentoo.org/~ionen/distfiles/loggcompat-4.4.2.tar.gz"
+                );
+                assert_eq!(filename, "loggcompat-4.4.2.tar.gz");
+                assert_eq!(restriction, &Some("mirror".to_string()));
+            }
+            _ => unreachable!("expected Uri"),
+        }
+    }
+
     #[test]
     fn rename_target_with_braces() {
         // Ebuilds occasionally write {P} instead of ${P} in rename targets;
