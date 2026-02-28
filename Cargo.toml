@@ -1,6 +1,6 @@
 [package]
 name = "portage-metadata"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.71.1"
 authors = ["Luca Barbato <lu_zero@gentoo.org>"]
@@ -11,7 +11,7 @@ keywords = ["gentoo", "portage", "ebuild", "pms", "metadata"]
 categories = ["parser-implementations", "development-tools"]
 
 [dependencies]
-portage-atom = "0.3.0"
+portage-atom = "0.3.1"
 winnow = "0.7"
 thiserror = "2"
 
@@ -22,4 +22,3 @@ path = "examples/parse_cache.rs"
 [profile.release]
 opt-level = 3
 lto = true
-codegen-units = 1
