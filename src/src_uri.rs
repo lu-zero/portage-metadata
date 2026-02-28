@@ -156,11 +156,15 @@ fn is_uri_char(c: char) -> bool {
                 | '@'
                 | '#'
                 | '?'
+                | '['   // used in legacy Debian-mirror URLs (e.g. vdr-calc-0[1].0.1-rc5.tgz)
+                | ']'
         )
 }
 
 fn is_filename_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+')
+    // '{' and '}' are permitted for rename targets where the ebuild author
+    // wrote {P} instead of ${P}; portage accepts such filenames in practice.
+    c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+' | '{' | '}')
 }
 
 fn is_flag_char(c: char) -> bool {
@@ -463,5 +467,39 @@ mod tests {
             displayed,
             "mirror+https://example.com/foo.tar.gz -> bar.tar.gz"
         );
+    }
+
+    #[test]
+    fn uri_with_brackets_in_filename() {
+        // Legacy Debian-mirror URLs sometimes embed a revision in brackets,
+        // e.g. vdr-calc-0[1].0.1-rc5.tgz.
+        let entries = SrcUriEntry::parse(
+            "http://vdr.websitec.de/download/vdr-calc/vdr-calc-0[1].0.1-rc5.tgz",
+        )
+        .unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Uri { filename, .. } => {
+                assert_eq!(filename, "vdr-calc-0[1].0.1-rc5.tgz");
+            }
+            _ => unreachable!("expected Uri"),
+        }
+    }
+
+    #[test]
+    fn rename_target_with_braces() {
+        // Ebuilds occasionally write {P} instead of ${P} in rename targets;
+        // portage accepts such filenames, so we should too.
+        let entries = SrcUriEntry::parse(
+            "https://github.com/SmallLars/openssl-ccm/archive/refs/tags/1.3.0.tar.gz -> {P}.tar.gz",
+        )
+        .unwrap();
+        assert_eq!(entries.len(), 1);
+        match &entries[0] {
+            SrcUriEntry::Renamed { target, .. } => {
+                assert_eq!(target, "{P}.tar.gz");
+            }
+            _ => unreachable!("expected Renamed"),
+        }
     }
 }
