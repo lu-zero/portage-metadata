@@ -1,6 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+use gentoo_core::arch::Arch;
+use gentoo_core::interner::{DefaultInterner, Interner};
+
 use crate::error::{Error, Result};
 
 /// Stability level for an architecture keyword.
@@ -24,15 +27,92 @@ pub enum Stability {
 ///
 /// See [PMS 7.3.3](https://projects.gentoo.org/pms/9/pms.html#keywords).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Keyword {
-    /// Architecture name (e.g. `amd64`, `arm64`, `x86`).
-    pub arch: String,
+pub struct Keyword<I = DefaultInterner>
+where
+    I: Interner,
+{
+    /// Architecture (interned).
+    pub arch: Arch<I>,
     /// Stability classification.
     pub stability: Stability,
 }
 
-impl Keyword {
-    /// Parse a space-separated `KEYWORDS` line into a list of keywords.
+fn is_valid_arch_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('-')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+impl<I: Interner> Keyword<I> {
+    fn parse_impl(s: &str) -> Result<Self> {
+        if s.is_empty() {
+            return Err(Error::InvalidKeyword("empty keyword".to_string()));
+        }
+
+        if s == "-*" {
+            return Ok(Keyword {
+                arch: Arch::intern("*"),
+                stability: Stability::DisabledAll,
+            });
+        }
+
+        if let Some(arch) = s.strip_prefix('~') {
+            if arch.is_empty() || !is_valid_arch_name(arch) {
+                return Err(Error::InvalidKeyword(s.to_string()));
+            }
+            Ok(Keyword {
+                arch: Arch::intern(arch),
+                stability: Stability::Testing,
+            })
+        } else if let Some(arch) = s.strip_prefix('-') {
+            if arch.is_empty() || !is_valid_arch_name(arch) {
+                return Err(Error::InvalidKeyword(s.to_string()));
+            }
+            Ok(Keyword {
+                arch: Arch::intern(arch),
+                stability: Stability::Disabled,
+            })
+        } else {
+            if !is_valid_arch_name(s) {
+                return Err(Error::InvalidKeyword(s.to_string()));
+            }
+            Ok(Keyword {
+                arch: Arch::intern(s),
+                stability: Stability::Stable,
+            })
+        }
+    }
+
+    /// Parse a single keyword token.
+    pub fn parse(s: &str) -> Result<Self> {
+        Self::parse_impl(s)
+    }
+}
+
+impl<I: Interner> fmt::Display for Keyword<I> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let arch = self.arch.as_str();
+        match self.stability {
+            Stability::Stable => write!(f, "{arch}"),
+            Stability::Testing => write!(f, "~{arch}"),
+            Stability::Disabled => write!(f, "-{arch}"),
+            Stability::DisabledAll => write!(f, "-*"),
+        }
+    }
+}
+
+impl<I: Interner> FromStr for Keyword<I> {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::parse(s)
+    }
+}
+
+impl Keyword<DefaultInterner> {
+    /// Parse a space-separated `KEYWORDS` line.
     ///
     /// # Examples
     ///
@@ -46,74 +126,8 @@ impl Keyword {
     /// assert_eq!(kws[2].stability, Stability::Disabled);
     /// assert_eq!(kws[3].stability, Stability::DisabledAll);
     /// ```
-    pub fn parse_line(input: &str) -> Result<Vec<Keyword>> {
-        input
-            .split_whitespace()
-            .map(|token| token.parse())
-            .collect()
-    }
-}
-
-impl FromStr for Keyword {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        if s.is_empty() {
-            return Err(Error::InvalidKeyword("empty keyword".to_string()));
-        }
-
-        if s == "-*" {
-            return Ok(Keyword {
-                arch: "*".to_string(),
-                stability: Stability::DisabledAll,
-            });
-        }
-
-        // Helper function to validate architecture names according to PMS 3.1.8
-        fn is_valid_arch_name(name: &str) -> bool {
-            !name.is_empty()
-                && !name.starts_with('-')
-                && name
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-        }
-
-        if let Some(arch) = s.strip_prefix('~') {
-            if arch.is_empty() || !is_valid_arch_name(arch) {
-                return Err(Error::InvalidKeyword(s.to_string()));
-            }
-            Ok(Keyword {
-                arch: arch.to_string(),
-                stability: Stability::Testing,
-            })
-        } else if let Some(arch) = s.strip_prefix('-') {
-            if arch.is_empty() || !is_valid_arch_name(arch) {
-                return Err(Error::InvalidKeyword(s.to_string()));
-            }
-            Ok(Keyword {
-                arch: arch.to_string(),
-                stability: Stability::Disabled,
-            })
-        } else {
-            if !is_valid_arch_name(s) {
-                return Err(Error::InvalidKeyword(s.to_string()));
-            }
-            Ok(Keyword {
-                arch: s.to_string(),
-                stability: Stability::Stable,
-            })
-        }
-    }
-}
-
-impl fmt::Display for Keyword {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.stability {
-            Stability::Stable => write!(f, "{}", self.arch),
-            Stability::Testing => write!(f, "~{}", self.arch),
-            Stability::Disabled => write!(f, "-{}", self.arch),
-            Stability::DisabledAll => write!(f, "-*"),
-        }
+    pub fn parse_line(input: &str) -> Result<Vec<Self>> {
+        input.split_whitespace().map(Self::parse).collect()
     }
 }
 
@@ -124,28 +138,28 @@ mod tests {
     #[test]
     fn parse_stable() {
         let kw: Keyword = "amd64".parse().unwrap();
-        assert_eq!(kw.arch, "amd64");
+        assert_eq!(kw.arch.as_str(), "amd64");
         assert_eq!(kw.stability, Stability::Stable);
     }
 
     #[test]
     fn parse_testing() {
         let kw: Keyword = "~arm64".parse().unwrap();
-        assert_eq!(kw.arch, "arm64");
+        assert_eq!(kw.arch.as_str(), "arm64");
         assert_eq!(kw.stability, Stability::Testing);
     }
 
     #[test]
     fn parse_disabled() {
         let kw: Keyword = "-x86".parse().unwrap();
-        assert_eq!(kw.arch, "x86");
+        assert_eq!(kw.arch.as_str(), "x86");
         assert_eq!(kw.stability, Stability::Disabled);
     }
 
     #[test]
     fn parse_disabled_all() {
         let kw: Keyword = "-*".parse().unwrap();
-        assert_eq!(kw.arch, "*");
+        assert_eq!(kw.arch.as_str(), "*");
         assert_eq!(kw.stability, Stability::DisabledAll);
     }
 
@@ -153,9 +167,9 @@ mod tests {
     fn parse_line() {
         let kws = Keyword::parse_line("amd64 ~arm64 -x86 -*").unwrap();
         assert_eq!(kws.len(), 4);
-        assert_eq!(kws[0].arch, "amd64");
-        assert_eq!(kws[1].arch, "arm64");
-        assert_eq!(kws[2].arch, "x86");
+        assert_eq!(kws[0].arch.as_str(), "amd64");
+        assert_eq!(kws[1].arch.as_str(), "arm64");
+        assert_eq!(kws[2].arch.as_str(), "x86");
         assert_eq!(kws[3].stability, Stability::DisabledAll);
     }
 
@@ -195,7 +209,6 @@ mod tests {
 
     #[test]
     fn test_arch_name_validation() {
-        // Test the validation function directly
         fn is_valid_arch_name(name: &str) -> bool {
             !name.is_empty()
                 && !name.starts_with('-')
@@ -204,15 +217,13 @@ mod tests {
                     .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
         }
 
-        // Valid names
         assert!(is_valid_arch_name("amd64"));
         assert!(is_valid_arch_name("arm_64"));
         assert!(is_valid_arch_name("arm-64"));
 
-        // Invalid names
-        assert!(!is_valid_arch_name("-arch")); // starts with hyphen
-        assert!(!is_valid_arch_name("")); // empty
-        assert!(!is_valid_arch_name("arch!name")); // invalid character
+        assert!(!is_valid_arch_name("-arch"));
+        assert!(!is_valid_arch_name(""));
+        assert!(!is_valid_arch_name("arch!name"));
     }
 
     #[test]
@@ -223,14 +234,14 @@ mod tests {
     #[test]
     fn valid_arch_with_underscore() {
         let kw: Keyword = "arm_64".parse().unwrap();
-        assert_eq!(kw.arch, "arm_64");
+        assert_eq!(kw.arch.as_str(), "arm_64");
         assert_eq!(kw.stability, Stability::Stable);
     }
 
     #[test]
     fn valid_arch_with_hyphen_not_first() {
         let kw: Keyword = "arm-64".parse().unwrap();
-        assert_eq!(kw.arch, "arm-64");
+        assert_eq!(kw.arch.as_str(), "arm-64");
         assert_eq!(kw.stability, Stability::Stable);
     }
 }

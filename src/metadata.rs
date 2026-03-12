@@ -1,3 +1,4 @@
+use gentoo_core::interner::{DefaultInterner, Interner};
 use portage_atom::{DepEntry, Slot};
 
 use crate::eapi::Eapi;
@@ -17,7 +18,10 @@ use crate::src_uri::SrcUriEntry;
 ///
 /// See [PMS 7.2](https://projects.gentoo.org/pms/9/pms.html#mandatory-ebuilddefined-variables).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EbuildMetadata {
+pub struct EbuildMetadata<I = DefaultInterner>
+where
+    I: Interner,
+{
     /// EAPI version.
     ///
     /// See [PMS 7.3.1](https://projects.gentoo.org/pms/9/pms.html#eapi).
@@ -43,10 +47,10 @@ pub struct EbuildMetadata {
     pub license: Option<LicenseExpr>,
 
     /// Architecture keywords.
-    pub keywords: Vec<Keyword>,
+    pub keywords: Vec<Keyword<I>>,
 
     /// USE flags declared by the ebuild.
-    pub iuse: Vec<IUse>,
+    pub iuse: Vec<IUse<I>>,
 
     /// REQUIRED_USE expression (EAPI 4+).
     pub required_use: Option<RequiredUseExpr>,

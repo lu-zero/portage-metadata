@@ -1,8 +1,8 @@
 [package]
 name = "portage-metadata"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
-rust-version = "1.71.1"
+rust-version = "1.88"
 authors = ["Luca Barbato <lu_zero@gentoo.org>"]
 license = "MIT"
 description = "Gentoo ebuild metadata cache types and parser based on PMS"
@@ -12,8 +12,13 @@ categories = ["parser-implementations", "development-tools"]
 
 [dependencies]
 portage-atom = "0.3.1"
+gentoo-core  = { version = "0.3.1", default-features = false }
 winnow = "0.7"
 thiserror = "2"
+
+[features]
+default = ["interner"]
+interner = ["gentoo-core/interner"]
 
 [[example]]
 name = "parse_cache"
