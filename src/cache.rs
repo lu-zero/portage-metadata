@@ -1,3 +1,4 @@
+use gentoo_core::interner::{DefaultInterner, Interner};
 use portage_atom::{DepEntry, Slot};
 
 use crate::eapi::Eapi;
@@ -18,9 +19,12 @@ use crate::src_uri::SrcUriEntry;
 ///
 /// See [PMS 14.2](https://projects.gentoo.org/pms/9/pms.html#mddict-cache-file-format).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CacheEntry {
+pub struct CacheEntry<I = DefaultInterner>
+where
+    I: Interner,
+{
     /// The ebuild metadata.
-    pub metadata: EbuildMetadata,
+    pub metadata: EbuildMetadata<I>,
 
     /// MD5 checksum of the ebuild file (from `_md5_`).
     pub md5: Option<String>,
@@ -31,28 +35,8 @@ pub struct CacheEntry {
     pub eclasses: Vec<(String, String)>,
 }
 
-impl CacheEntry {
-    /// Parse a md5-cache file's contents into a `CacheEntry`.
-    ///
-    /// The input is the full text of a cache file. Lines are `KEY=VALUE`
-    /// pairs in arbitrary order. Empty values may be omitted entirely.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use portage_metadata::CacheEntry;
-    ///
-    /// let input = "\
-    /// EAPI=7
-    /// DESCRIPTION=Example package
-    /// SLOT=0
-    /// DEFINED_PHASES=compile install
-    /// KEYWORDS=~amd64
-    /// ";
-    /// let entry = CacheEntry::parse(input).unwrap();
-    /// assert_eq!(entry.metadata.description, "Example package");
-    /// ```
-    pub fn parse(input: &str) -> Result<CacheEntry> {
+impl<I: Interner> CacheEntry<I> {
+    fn parse_impl(input: &str) -> Result<CacheEntry<I>> {
         let mut eapi = None;
         let mut description = None;
         let mut slot = None;
@@ -140,16 +124,21 @@ impl CacheEntry {
             Some(LicenseExpr::parse(&license)?)
         };
 
-        let keywords_val = if keywords.is_empty() {
+        let keywords_val: Vec<Keyword<I>> = if keywords.is_empty() {
             Vec::new()
         } else {
-            Keyword::parse_line(&keywords)?
+            keywords
+                .split_whitespace()
+                .map(|token| Keyword::parse(token))
+                .collect::<Result<_>>()?
         };
 
-        let iuse_val = if iuse.is_empty() {
+        let iuse_val: Vec<IUse<I>> = if iuse.is_empty() {
             Vec::new()
         } else {
-            IUse::parse_line(&iuse)?
+            iuse.split_whitespace()
+                .map(|token| IUse::parse(token))
+                .collect::<Result<_>>()?
         };
 
         let required_use_val = if required_use.is_empty() {
@@ -313,6 +302,32 @@ impl CacheEntry {
     }
 }
 
+impl CacheEntry<DefaultInterner> {
+    /// Parse a md5-cache file's contents into a `CacheEntry`.
+    ///
+    /// The input is the full text of a cache file. Lines are `KEY=VALUE`
+    /// pairs in arbitrary order. Empty values may be omitted entirely.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use portage_metadata::CacheEntry;
+    ///
+    /// let input = "\
+    /// EAPI=7
+    /// DESCRIPTION=Example package
+    /// SLOT=0
+    /// DEFINED_PHASES=compile install
+    /// KEYWORDS=~amd64
+    /// ";
+    /// let entry = CacheEntry::parse(input).unwrap();
+    /// assert_eq!(entry.metadata.description, "Example package");
+    /// ```
+    pub fn parse(input: &str) -> Result<Self> {
+        Self::parse_impl(input)
+    }
+}
+
 /// Parse a SLOT value into a `Slot`.
 fn parse_slot(s: &str) -> Result<Slot> {
     if s.is_empty() {
@@ -403,7 +418,7 @@ _md5_=4539d849d3cea8ac84debad9b3154143
         assert_eq!(entry.metadata.slot.subslot, None);
         assert_eq!(entry.metadata.homepage, vec!["https://llvm.org/"]);
         assert_eq!(entry.metadata.keywords.len(), 2);
-        assert_eq!(entry.metadata.keywords[0].arch, "amd64");
+        assert_eq!(entry.metadata.keywords[0].arch.as_str(), "amd64");
         assert_eq!(entry.metadata.keywords[0].stability, Stability::Testing);
         assert_eq!(entry.metadata.iuse.len(), 3);
         assert!(entry.metadata.required_use.is_some());

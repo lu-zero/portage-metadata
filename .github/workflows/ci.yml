@@ -15,31 +15,25 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: [stable, "1.71.1"]
+        rust: [stable, "1.88.0"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: lu-zero/portage-atom
-          path: portage-atom
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
       - run: cargo test
+      - run: cargo test --no-default-features
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: lu-zero/portage-atom
-          path: portage-atom
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - run: cargo clippy -- -D warnings
+      - run: cargo clippy --no-default-features -- -D warnings
 
   fmt:
     name: Format
@@ -56,15 +50,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: lu-zero/portage-atom
-          path: portage-atom
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
       - uses: taiki-e/install-action@cargo-llvm-cov
-      - run: cargo llvm-cov --lcov --output-path lcov.info
+      - run: cargo llvm-cov clean --workspace
+      - run: cargo llvm-cov --no-report
+      - run: cargo llvm-cov --no-report --no-default-features
+      - run: cargo llvm-cov report --lcov --output-path lcov.info
       - uses: codecov/codecov-action@v5
         with:
           files: lcov.info
@@ -76,9 +69,5 @@ jobs:
       RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: lu-zero/portage-atom
-          path: portage-atom
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --no-deps
