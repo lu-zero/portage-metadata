@@ -1,4 +1,6 @@
 use portage_metadata::CacheEntry;
+use std::env;
+use std::fs;
 
 const EXAMPLE: &str = "\
 DEFINED_PHASES=install test unpack
@@ -19,7 +21,24 @@ _md5_=4539d849d3cea8ac84debad9b3154143
 ";
 
 fn main() {
-    let entry = CacheEntry::parse(EXAMPLE).expect("failed to parse cache entry");
+    let args: Vec<String> = env::args().skip(1).collect();
+
+    if args.is_empty() {
+        // No arguments provided, use the built-in example
+        let entry = CacheEntry::parse(EXAMPLE).expect("failed to parse cache entry");
+        print_entry(&entry);
+    } else {
+        // Process each file argument
+        for file_path in args {
+            let content = fs::read_to_string(&file_path).expect("failed to read file");
+            let entry = CacheEntry::parse(&content).expect("failed to parse cache entry");
+            println!("=== File: {} ===", file_path);
+            print_entry(&entry);
+        }
+    }
+}
+
+fn print_entry(entry: &CacheEntry) {
     let m = &entry.metadata;
 
     println!("=== Parsed Cache Entry ===");
