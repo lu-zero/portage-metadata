@@ -49,6 +49,15 @@ All public types must reference the relevant PMS section in their doc comments
 - `ci:` — CI/CD changes
 - `chore:` — maintenance (dependencies, tooling)
 
+**Pre-commit Checklist:** All build commands must pass before committing:
+```bash
+cargo test                        # Run all tests (unit + doc)
+cargo clippy -- -D warnings       # Lint — must be warning-free
+cargo fmt --check                 # Format check — must pass
+cargo doc --no-deps               # Build docs — must have no warnings
+cargo run --example parse_cache   # Smoke-test the example
+```
+
 ## MSRV
 
 Minimum Supported Rust Version is **1.70**. CI tests against both stable and
