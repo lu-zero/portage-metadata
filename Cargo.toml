@@ -11,14 +11,12 @@ keywords = ["gentoo", "portage", "ebuild", "pms", "metadata"]
 categories = ["parser-implementations", "development-tools"]
 
 [dependencies]
-portage-atom = "0.3.1"
-gentoo-core  = { version = "0.3.1", default-features = false }
+portage-atom = "0.5"
 winnow = "0.7"
 thiserror = "2"
 
 [features]
-default = ["interner"]
-interner = ["gentoo-core/interner"]
+default = []
 
 [[example]]
 name = "parse_cache"

@@ -56,6 +56,5 @@ pub use required_use::RequiredUseExpr;
 pub use restrict::RestrictExpr;
 pub use src_uri::SrcUriEntry;
 
-// Re-export gentoo-core modules and types used in our public API
-pub use gentoo_core::arch::ExoticKey;
-pub use gentoo_core::{arch, interner, Arch, KnownArch};
+// Re-export interner module so downstream crates can use the same types
+pub use portage_atom::gentoo_interner as interner;
