@@ -1,8 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use gentoo_core::arch::Arch;
-use gentoo_core::interner::{DefaultInterner, Interner};
+use crate::interner::{DefaultInterner, Interned, Interner};
 
 use crate::error::{Error, Result};
 
@@ -32,7 +31,7 @@ where
     I: Interner,
 {
     /// Architecture (interned).
-    pub arch: Arch<I>,
+    pub arch: Interned<I>,
     /// Stability classification.
     pub stability: Stability,
 }
@@ -53,7 +52,7 @@ impl<I: Interner> Keyword<I> {
 
         if s == "-*" {
             return Ok(Keyword {
-                arch: Arch::intern("*"),
+                arch: Interned::intern("*"),
                 stability: Stability::DisabledAll,
             });
         }
@@ -63,7 +62,7 @@ impl<I: Interner> Keyword<I> {
                 return Err(Error::InvalidKeyword(s.to_string()));
             }
             Ok(Keyword {
-                arch: Arch::intern(arch),
+                arch: Interned::intern(arch),
                 stability: Stability::Testing,
             })
         } else if let Some(arch) = s.strip_prefix('-') {
@@ -71,7 +70,7 @@ impl<I: Interner> Keyword<I> {
                 return Err(Error::InvalidKeyword(s.to_string()));
             }
             Ok(Keyword {
-                arch: Arch::intern(arch),
+                arch: Interned::intern(arch),
                 stability: Stability::Disabled,
             })
         } else {
@@ -79,7 +78,7 @@ impl<I: Interner> Keyword<I> {
                 return Err(Error::InvalidKeyword(s.to_string()));
             }
             Ok(Keyword {
-                arch: Arch::intern(s),
+                arch: Interned::intern(s),
                 stability: Stability::Stable,
             })
         }

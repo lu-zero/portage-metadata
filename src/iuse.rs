@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use gentoo_core::interner::{DefaultInterner, Interner};
+use crate::interner::{DefaultInterner, Interner};
 
 use crate::error::{Error, Result};
 

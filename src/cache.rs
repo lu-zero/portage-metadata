@@ -1,4 +1,4 @@
-use gentoo_core::interner::{DefaultInterner, Interner};
+use crate::interner::{DefaultInterner, Interner};
 use portage_atom::{DepEntry, Slot};
 
 use crate::eapi::Eapi;
@@ -465,7 +465,10 @@ _md5_=4539d849d3cea8ac84debad9b3154143
         let input = "DESCRIPTION=Test\nSLOT=0/2.1\n";
         let entry = CacheEntry::parse(input).unwrap();
         assert_eq!(entry.metadata.slot.slot, "0");
-        assert_eq!(entry.metadata.slot.subslot, Some("2.1".to_string()));
+        assert_eq!(
+            entry.metadata.slot.subslot,
+            Some(crate::interner::Interned::intern("2.1"))
+        );
     }
 
     #[test]

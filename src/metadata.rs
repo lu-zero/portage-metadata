@@ -1,4 +1,4 @@
-use gentoo_core::interner::{DefaultInterner, Interner};
+use crate::interner::{DefaultInterner, Interner};
 use portage_atom::{DepEntry, Slot};
 
 use crate::eapi::Eapi;
