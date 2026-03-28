@@ -2,7 +2,7 @@ use std::fmt;
 
 use winnow::ascii::multispace0;
 use winnow::combinator::{alt, cut_err, delimited, dispatch, opt, peek, preceded, repeat};
-use winnow::error::{ContextError, ErrMode, StrContext};
+use winnow::error::StrContext;
 use winnow::prelude::*;
 use winnow::token::{any, take_while};
 
@@ -49,7 +49,7 @@ impl LicenseExpr {
     /// assert!(matches!(expr, LicenseExpr::License(_)));
     /// ```
     pub fn parse(input: &str) -> Result<Self> {
-        let entries: Vec<LicenseExpr> = parse_license_string()
+        let entries: Vec<LicenseExpr> = parse_license_string
             .parse(input)
             .map_err(|e| Error::InvalidLicense(format!("{e}")))?;
 
@@ -115,16 +115,17 @@ fn is_flag_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+' || c == '@'
 }
 
-fn parse_license_name<'s>() -> impl Parser<&'s str, LicenseExpr, ErrMode<ContextError>> {
+fn parse_license_name(input: &mut &str) -> ModalResult<LicenseExpr> {
     take_while(1.., is_license_char)
         .verify(|name: &str| {
             // Validate license name according to PMS 3.1.7
             !name.starts_with(['-', '.', '+'])
         })
         .map(|name: &str| LicenseExpr::License(name.to_string()))
+        .parse_next(input)
 }
 
-fn parse_any_of<'s>() -> impl Parser<&'s str, LicenseExpr, ErrMode<ContextError>> {
+fn parse_any_of(input: &mut &str) -> ModalResult<LicenseExpr> {
     preceded(
         "||",
         preceded(
@@ -134,25 +135,24 @@ fn parse_any_of<'s>() -> impl Parser<&'s str, LicenseExpr, ErrMode<ContextError>
         ),
     )
     .map(LicenseExpr::AnyOf)
+    .parse_next(input)
 }
 
-fn parse_use_conditional<'s>() -> impl Parser<&'s str, LicenseExpr, ErrMode<ContextError>> {
-    move |input: &mut &'s str| {
-        let negated = opt('!').parse_next(input)?.is_some();
-        let flag: String = take_while(1.., is_flag_char)
-            .map(|s: &str| s.to_string())
-            .parse_next(input)?;
-        '?'.parse_next(input)?;
-        multispace0.parse_next(input)?;
-        let entries = cut_err(delimited('(', parse_license_entries, (multispace0, ')')))
-            .context(StrContext::Label("USE conditional group"))
-            .parse_next(input)?;
-        Ok(LicenseExpr::UseConditional {
-            flag,
-            negated,
-            entries,
-        })
-    }
+fn parse_use_conditional(input: &mut &str) -> ModalResult<LicenseExpr> {
+    let negated = opt('!').parse_next(input)?.is_some();
+    let flag: String = take_while(1.., is_flag_char)
+        .map(|s: &str| s.to_string())
+        .parse_next(input)?;
+    '?'.parse_next(input)?;
+    multispace0.parse_next(input)?;
+    let entries = cut_err(delimited('(', parse_license_entries, (multispace0, ')')))
+        .context(StrContext::Label("USE conditional group"))
+        .parse_next(input)?;
+    Ok(LicenseExpr::UseConditional {
+        flag,
+        negated,
+        entries,
+    })
 }
 
 fn parse_paren_group(input: &mut &str) -> ModalResult<Vec<LicenseExpr>> {
@@ -166,11 +166,11 @@ fn parse_paren_group(input: &mut &str) -> ModalResult<Vec<LicenseExpr>> {
 
 fn parse_license_entry(input: &mut &str) -> ModalResult<Vec<LicenseExpr>> {
     dispatch! {peek(any);
-        '|' => parse_any_of().map(|e| vec![e]),
+        '|' => parse_any_of.map(|e| vec![e]),
         '(' => parse_paren_group,
         _ => alt((
-            parse_use_conditional().map(|e| vec![e]),
-            parse_license_name().map(|e| vec![e]),
+            parse_use_conditional.map(|e| vec![e]),
+            parse_license_name.map(|e| vec![e]),
         )),
     }
     .parse_next(input)
@@ -188,13 +188,10 @@ fn parse_license_entries(input: &mut &str) -> ModalResult<Vec<LicenseExpr>> {
         .parse_next(input)
 }
 
-pub(crate) fn parse_license_string<'s>(
-) -> impl Parser<&'s str, Vec<LicenseExpr>, ErrMode<ContextError>> {
-    move |input: &mut &'s str| {
-        let entries = parse_license_entries(input)?;
-        multispace0.parse_next(input)?;
-        Ok(entries)
-    }
+pub(crate) fn parse_license_string(input: &mut &str) -> ModalResult<Vec<LicenseExpr>> {
+    let entries = parse_license_entries(input)?;
+    multispace0.parse_next(input)?;
+    Ok(entries)
 }
 
 #[cfg(test)]

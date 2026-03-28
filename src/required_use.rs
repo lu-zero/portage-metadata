@@ -2,7 +2,7 @@ use std::fmt;
 
 use winnow::ascii::multispace0;
 use winnow::combinator::{alt, cut_err, delimited, dispatch, opt, peek, preceded, repeat};
-use winnow::error::{ContextError, ErrMode, StrContext};
+use winnow::error::StrContext;
 use winnow::prelude::*;
 use winnow::token::{any, take_while};
 
@@ -57,7 +57,7 @@ impl RequiredUseExpr {
     /// assert!(matches!(expr, RequiredUseExpr::ExactlyOne(_)));
     /// ```
     pub fn parse(input: &str) -> Result<Self> {
-        let entries: Vec<RequiredUseExpr> = parse_required_use_string()
+        let entries: Vec<RequiredUseExpr> = parse_required_use_string
             .parse(input)
             .map_err(|e| Error::InvalidRequiredUse(format!("{e}")))?;
 
@@ -194,7 +194,7 @@ fn parse_use_conditional(input: &mut &str) -> ModalResult<RequiredUseExpr> {
 }
 
 /// Parse a bare flag: `flag` or `!flag`.
-fn parse_flag<'s>() -> impl Parser<&'s str, RequiredUseExpr, ErrMode<ContextError>> {
+fn parse_flag(input: &mut &str) -> ModalResult<RequiredUseExpr> {
     (
         opt('!'),
         take_while(1.., is_flag_char)
@@ -210,6 +210,7 @@ fn parse_flag<'s>() -> impl Parser<&'s str, RequiredUseExpr, ErrMode<ContextErro
             name,
             negated: neg.is_some(),
         })
+        .parse_next(input)
 }
 
 fn parse_paren_group(input: &mut &str) -> ModalResult<Vec<RequiredUseExpr>> {
@@ -229,7 +230,7 @@ fn parse_required_use_entry(input: &mut &str) -> ModalResult<Vec<RequiredUseExpr
         '?' => parse_at_most_one.map(|e| vec![e]),
         _ => alt((
             parse_use_conditional.map(|e| vec![e]),
-            parse_flag().map(|e| vec![e]),
+            parse_flag.map(|e| vec![e]),
         )),
     }
     .parse_next(input)
@@ -247,13 +248,10 @@ fn parse_required_use_entries(input: &mut &str) -> ModalResult<Vec<RequiredUseEx
         .parse_next(input)
 }
 
-pub(crate) fn parse_required_use_string<'s>(
-) -> impl Parser<&'s str, Vec<RequiredUseExpr>, ErrMode<ContextError>> {
-    move |input: &mut &'s str| {
-        let entries = parse_required_use_entries(input)?;
-        multispace0.parse_next(input)?;
-        Ok(entries)
-    }
+pub(crate) fn parse_required_use_string(input: &mut &str) -> ModalResult<Vec<RequiredUseExpr>> {
+    let entries = parse_required_use_entries(input)?;
+    multispace0.parse_next(input)?;
+    Ok(entries)
 }
 
 #[cfg(test)]

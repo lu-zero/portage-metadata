@@ -2,7 +2,7 @@ use std::fmt;
 
 use winnow::ascii::multispace0;
 use winnow::combinator::{alt, cut_err, delimited, dispatch, opt, peek, preceded, repeat};
-use winnow::error::{ContextError, ErrMode, StrContext};
+use winnow::error::StrContext;
 use winnow::prelude::*;
 use winnow::token::{any, take_while};
 
@@ -49,7 +49,7 @@ impl RestrictExpr {
     /// assert_eq!(entries.len(), 1);
     /// ```
     pub fn parse(input: &str) -> Result<Vec<RestrictExpr>> {
-        parse_restrict_string()
+        parse_restrict_string
             .parse(input)
             .map_err(|e| Error::InvalidRestrict(format!("{e}")))
     }
@@ -107,8 +107,10 @@ fn is_flag_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+'
 }
 
-fn parse_token<'s>() -> impl Parser<&'s str, RestrictExpr, ErrMode<ContextError>> {
-    take_while(1.., is_token_char).map(|s: &str| RestrictExpr::Token(s.to_string()))
+fn parse_token(input: &mut &str) -> ModalResult<RestrictExpr> {
+    take_while(1.., is_token_char)
+        .map(|s: &str| RestrictExpr::Token(s.to_string()))
+        .parse_next(input)
 }
 
 fn parse_use_conditional(input: &mut &str) -> ModalResult<RestrictExpr> {
@@ -144,7 +146,7 @@ fn parse_restrict_entry(input: &mut &str) -> ModalResult<RestrictExpr> {
             }),
         _ => alt((
             parse_use_conditional,
-            parse_token(),
+            parse_token,
         )),
     }
     .parse_next(input)
@@ -154,13 +156,10 @@ fn parse_restrict_entries(input: &mut &str) -> ModalResult<Vec<RestrictExpr>> {
     repeat(0.., preceded(multispace0, parse_restrict_entry)).parse_next(input)
 }
 
-pub(crate) fn parse_restrict_string<'s>(
-) -> impl Parser<&'s str, Vec<RestrictExpr>, ErrMode<ContextError>> {
-    move |input: &mut &'s str| {
-        let entries = parse_restrict_entries(input)?;
-        multispace0.parse_next(input)?;
-        Ok(entries)
-    }
+pub(crate) fn parse_restrict_string(input: &mut &str) -> ModalResult<Vec<RestrictExpr>> {
+    let entries = parse_restrict_entries(input)?;
+    multispace0.parse_next(input)?;
+    Ok(entries)
 }
 
 #[cfg(test)]

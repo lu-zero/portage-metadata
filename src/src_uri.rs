@@ -2,7 +2,7 @@ use std::fmt;
 
 use winnow::ascii::multispace0;
 use winnow::combinator::{alt, cut_err, delimited, dispatch, opt, peek, preceded, repeat};
-use winnow::error::{ContextError, ErrMode, StrContext};
+use winnow::error::StrContext;
 use winnow::prelude::*;
 use winnow::token::{any, take_while};
 
@@ -64,7 +64,7 @@ impl SrcUriEntry {
     /// assert_eq!(entries.len(), 2);
     /// ```
     pub fn parse(input: &str) -> Result<Vec<SrcUriEntry>> {
-        parse_src_uri_string()
+        parse_src_uri_string
             .parse(input)
             .map_err(|e| Error::InvalidSrcUri(format!("{e}")))
     }
@@ -173,27 +173,32 @@ fn is_flag_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+'
 }
 
-fn parse_uri<'s>() -> impl Parser<&'s str, String, ErrMode<ContextError>> {
-    take_while(1.., is_uri_char).map(|s: &str| s.to_string())
+fn parse_uri(input: &mut &str) -> ModalResult<String> {
+    take_while(1.., is_uri_char)
+        .map(|s: &str| s.to_string())
+        .parse_next(input)
 }
 
-fn parse_restriction_prefix<'s>() -> impl Parser<&'s str, Option<String>, ErrMode<ContextError>> {
+fn parse_restriction_prefix(input: &mut &str) -> ModalResult<Option<String>> {
     opt(alt((
         "fetch+".map(|_| "fetch".to_string()),
         "mirror+".map(|_| "mirror".to_string()),
     )))
+    .parse_next(input)
 }
 
-fn parse_filename<'s>() -> impl Parser<&'s str, String, ErrMode<ContextError>> {
-    take_while(1.., is_filename_char).map(|s: &str| s.to_string())
+fn parse_filename(input: &mut &str) -> ModalResult<String> {
+    take_while(1.., is_filename_char)
+        .map(|s: &str| s.to_string())
+        .parse_next(input)
 }
 
 /// Parse a single URI, optionally followed by `-> filename`.
-fn parse_uri_entry<'s>() -> impl Parser<&'s str, SrcUriEntry, ErrMode<ContextError>> {
+fn parse_uri_entry(input: &mut &str) -> ModalResult<SrcUriEntry> {
     (
-        parse_restriction_prefix(),
-        parse_uri(),
-        opt(preceded((multispace0, "->", multispace0), parse_filename())),
+        parse_restriction_prefix,
+        parse_uri,
+        opt(preceded((multispace0, "->", multispace0), parse_filename)),
     )
         .map(|(restriction, url, rename)| {
             if let Some(target) = rename {
@@ -211,45 +216,45 @@ fn parse_uri_entry<'s>() -> impl Parser<&'s str, SrcUriEntry, ErrMode<ContextErr
                 }
             }
         })
+        .parse_next(input)
 }
 
 /// Parse `[!]flag? ( entries... )`.
-fn parse_use_conditional<'s>() -> impl Parser<&'s str, SrcUriEntry, ErrMode<ContextError>> {
-    move |input: &mut &'s str| {
-        let negated = opt('!').parse_next(input)?.is_some();
-        let flag: String = take_while(1.., is_flag_char)
-            .map(|s: &str| s.to_string())
-            .parse_next(input)?;
-        '?'.parse_next(input)?;
-        multispace0.parse_next(input)?;
-        let entries = cut_err(delimited('(', parse_src_uri_entries, (multispace0, ')')))
-            .context(StrContext::Label("USE conditional group"))
-            .parse_next(input)?;
-        Ok(SrcUriEntry::UseConditional {
-            flag,
-            negated,
-            entries,
-        })
-    }
+fn parse_use_conditional(input: &mut &str) -> ModalResult<SrcUriEntry> {
+    let negated = opt('!').parse_next(input)?.is_some();
+    let flag: String = take_while(1.., is_flag_char)
+        .map(|s: &str| s.to_string())
+        .parse_next(input)?;
+    '?'.parse_next(input)?;
+    multispace0.parse_next(input)?;
+    let entries = cut_err(delimited('(', parse_src_uri_entries, (multispace0, ')')))
+        .context(StrContext::Label("USE conditional group"))
+        .parse_next(input)?;
+    Ok(SrcUriEntry::UseConditional {
+        flag,
+        negated,
+        entries,
+    })
 }
 
 /// Parse `( entries... )` — bare parenthesized group.
-fn parse_group<'s>() -> impl Parser<&'s str, SrcUriEntry, ErrMode<ContextError>> {
+fn parse_group(input: &mut &str) -> ModalResult<SrcUriEntry> {
     delimited(
         '(',
         parse_src_uri_entries,
         cut_err((multispace0, ')')).context(StrContext::Label("closing ')'")),
     )
     .map(SrcUriEntry::Group)
+    .parse_next(input)
 }
 
 /// Parse a single SRC_URI entry.
 fn parse_src_uri_entry(input: &mut &str) -> ModalResult<SrcUriEntry> {
     dispatch! {peek(any);
-        '(' => parse_group(),
+        '(' => parse_group,
         _ => alt((
-            parse_use_conditional(),
-            parse_uri_entry(),
+            parse_use_conditional,
+            parse_uri_entry,
         )),
     }
     .parse_next(input)
@@ -261,13 +266,10 @@ fn parse_src_uri_entries(input: &mut &str) -> ModalResult<Vec<SrcUriEntry>> {
 }
 
 /// Parse a complete SRC_URI string.
-pub(crate) fn parse_src_uri_string<'s>(
-) -> impl Parser<&'s str, Vec<SrcUriEntry>, ErrMode<ContextError>> {
-    move |input: &mut &'s str| {
-        let entries = parse_src_uri_entries(input)?;
-        multispace0.parse_next(input)?;
-        Ok(entries)
-    }
+pub(crate) fn parse_src_uri_string(input: &mut &str) -> ModalResult<Vec<SrcUriEntry>> {
+    let entries = parse_src_uri_entries(input)?;
+    multispace0.parse_next(input)?;
+    Ok(entries)
 }
 
 #[cfg(test)]
