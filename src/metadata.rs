@@ -78,7 +78,22 @@ where
     /// Install-time dependencies (`IDEPEND`, EAPI 8).
     pub idepend: Vec<DepEntry>,
 
-    /// Inherited eclasses.
+    /// Eclasses directly listed in the ebuild's `inherit` statement.
+    ///
+    /// Stored as `INHERIT=` in the md5-dict cache format.  This is a portage
+    /// auxdb extension; it is not specified by PMS.
+    ///
+    /// See [PMS 10.1](https://projects.gentoo.org/pms/latest/pms.html#the-inherit-command).
+    pub inherit: Vec<String>,
+
+    /// All transitively inherited eclass names (direct + nested).
+    ///
+    /// Corresponds to the [`INHERITED`](https://projects.gentoo.org/pms/latest/pms.html#magic-ebuild-defined-variables)
+    /// ebuild variable (PMS 7.4).  In the md5-dict cache format (PMS 14.3)
+    /// this key is excluded; the names are derived from `_eclasses_` instead.
+    ///
+    /// See [PMS 10.1](https://projects.gentoo.org/pms/latest/pms.html#the-inherit-command)
+    /// and [PMS 14.3](https://projects.gentoo.org/pms/latest/pms.html#md5-dict-cache-file-format).
     pub inherited: Vec<String>,
 
     /// Defined phase functions.

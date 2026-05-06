@@ -29,9 +29,10 @@ where
     /// MD5 checksum of the ebuild file (from `_md5_`).
     pub md5: Option<String>,
 
-    /// Eclass inheritance list with checksums (from `_eclasses_`).
+    /// All transitively inherited eclasses with their checksums (from `_eclasses_`).
     ///
-    /// Each tuple is `(eclass_name, checksum)`.
+    /// Each tuple is `(eclass_name, md5_checksum)`.  Pairs are tab-separated
+    /// as described in [PMS 14.3](https://projects.gentoo.org/pms/latest/pms.html#md5-dict-cache-file-format).
     pub eclasses: Vec<(String, String)>,
 }
 
@@ -53,7 +54,7 @@ impl<I: Interner> CacheEntry<I> {
         let mut bdepend = String::new();
         let mut pdepend = String::new();
         let mut idepend = String::new();
-        let mut inherited = String::new();
+        let mut inherit = String::new();
         let mut defined_phases = String::new();
         let mut md5 = None;
         let mut eclasses_raw = String::new();
@@ -82,7 +83,7 @@ impl<I: Interner> CacheEntry<I> {
                     "BDEPEND" => bdepend = value.to_string(),
                     "PDEPEND" => pdepend = value.to_string(),
                     "IDEPEND" => idepend = value.to_string(),
-                    "INHERITED" => inherited = value.to_string(),
+                    "INHERIT" => inherit = value.to_string(),
                     "DEFINED_PHASES" => defined_phases = value.to_string(),
                     "_md5_" => md5 = Some(value.to_string()),
                     "_eclasses_" => eclasses_raw = value.to_string(),
@@ -165,18 +166,19 @@ impl<I: Interner> CacheEntry<I> {
         let pdepend_val = parse_dep_field(&pdepend)?;
         let idepend_val = parse_dep_field(&idepend)?;
 
-        let inherited_val: Vec<String> = if inherited.is_empty() {
+        let eclasses = parse_eclasses(&eclasses_raw);
+
+        let inherit_val: Vec<String> = if inherit.is_empty() {
             Vec::new()
         } else {
-            inherited
-                .split_whitespace()
-                .map(|s| s.to_string())
-                .collect()
+            inherit.split_whitespace().map(|s| s.to_string()).collect()
         };
 
-        let defined_phases_val = Phase::parse_line(&defined_phases)?;
+        // PMS 14.3: md5-dict format excludes the INHERITED key; the
+        // transitive eclass list is carried by _eclasses_ instead.
+        let inherited_val: Vec<String> = eclasses.iter().map(|(name, _)| name.clone()).collect();
 
-        let eclasses = parse_eclasses(&eclasses_raw);
+        let defined_phases_val = Phase::parse_line(&defined_phases)?;
 
         Ok(CacheEntry {
             metadata: EbuildMetadata {
@@ -196,6 +198,7 @@ impl<I: Interner> CacheEntry<I> {
                 bdepend: bdepend_val,
                 pdepend: pdepend_val,
                 idepend: idepend_val,
+                inherit: inherit_val,
                 inherited: inherited_val,
                 defined_phases: defined_phases_val,
             },
@@ -280,8 +283,8 @@ impl<I: Interner> CacheEntry<I> {
             lines.push(format!("PROPERTIES={}", p_str.join(" ")));
         }
 
-        if !m.inherited.is_empty() {
-            lines.push(format!("INHERITED={}", m.inherited.join(" ")));
+        if !m.inherit.is_empty() {
+            lines.push(format!("INHERIT={}", m.inherit.join(" ")));
         }
 
         if !self.eclasses.is_empty() {
@@ -435,6 +438,8 @@ _md5_=4539d849d3cea8ac84debad9b3154143
         assert_eq!(entry.eclasses.len(), 2);
         assert_eq!(entry.eclasses[0].0, "llvm.org");
         assert_eq!(entry.eclasses[1].0, "multibuild");
+        assert!(entry.metadata.inherit.is_empty());
+        assert_eq!(entry.metadata.inherited, vec!["llvm.org", "multibuild"]);
     }
 
     #[test]
@@ -545,5 +550,63 @@ _md5_=4539d849d3cea8ac84debad9b3154143
         let entry = CacheEntry::parse(input).unwrap();
         assert_eq!(entry.metadata.eapi, Eapi::Eight);
         assert_eq!(entry.metadata.idepend.len(), 1);
+    }
+
+    #[test]
+    fn inherit_direct_only() {
+        let input = "DESCRIPTION=Test\nSLOT=0\nINHERIT=foo bar\n";
+        let entry = CacheEntry::parse(input).unwrap();
+        assert_eq!(entry.metadata.inherit, vec!["foo", "bar"]);
+        assert!(entry.metadata.inherited.is_empty());
+    }
+
+    #[test]
+    fn inherited_from_eclasses() {
+        let input = "DESCRIPTION=Test\nSLOT=0\n_eclasses_=alpha\tdeadbeef\tbeta\tcafe1234\n";
+        let entry = CacheEntry::parse(input).unwrap();
+        assert!(entry.metadata.inherit.is_empty());
+        assert_eq!(entry.metadata.inherited, vec!["alpha", "beta"]);
+        assert_eq!(entry.eclasses.len(), 2);
+    }
+
+    #[test]
+    fn inherit_and_eclasses_together() {
+        let input = "\
+DESCRIPTION=Test
+SLOT=0
+INHERIT=foo
+_eclasses_=foo\taabb\tbar\tccdd
+";
+        let entry = CacheEntry::parse(input).unwrap();
+        assert_eq!(entry.metadata.inherit, vec!["foo"]);
+        assert_eq!(entry.metadata.inherited, vec!["foo", "bar"]);
+    }
+
+    #[test]
+    fn inherited_key_ignored_in_md5_dict() {
+        let input = "\
+DESCRIPTION=Test
+SLOT=0
+INHERITED=ignored_legacy
+_eclasses_=real\t1234
+";
+        let entry = CacheEntry::parse(input).unwrap();
+        assert_eq!(entry.metadata.inherited, vec!["real"]);
+    }
+
+    #[test]
+    fn serialize_inherit_round_trip() {
+        let input = "\
+DESCRIPTION=Test
+SLOT=0
+INHERIT=foo bar
+_eclasses_=foo\taabb\tbar\tccdd\tbaz\teeff
+";
+        let entry = CacheEntry::parse(input).unwrap();
+        let serialized = entry.serialize();
+        let reparsed = CacheEntry::parse(&serialized).unwrap();
+        assert_eq!(reparsed.metadata.inherit, vec!["foo", "bar"]);
+        assert_eq!(reparsed.metadata.inherited, vec!["foo", "bar", "baz"]);
+        assert_eq!(reparsed.eclasses, entry.eclasses);
     }
 }
