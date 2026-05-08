@@ -238,9 +238,14 @@ mod tests {
     }
 
     #[test]
-    fn valid_arch_with_hyphen_not_first() {
-        let kw: Keyword = "arm-64".parse().unwrap();
-        assert_eq!(kw.arch.as_str(), "arm-64");
+    fn valid_arch_with_hyphen() {
+        let kw: Keyword = "arm64-macos".parse().unwrap();
+        assert_eq!(kw.arch.as_str(), "arm64-macos");
         assert_eq!(kw.stability, Stability::Stable);
+    }
+
+    #[test]
+    fn invalid_double_star() {
+        assert!("**".parse::<Keyword>().is_err());
     }
 }
