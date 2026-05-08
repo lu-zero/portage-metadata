@@ -44,6 +44,10 @@ pub enum Error {
     /// Error from the portage-atom dependency parser.
     #[error("dependency parse error: {0}")]
     DepError(String),
+
+    /// Invalid SLOT value (does not conform to PMS 3.1.3).
+    #[error("invalid SLOT: {0}")]
+    InvalidSlot(String),
 }
 
 /// Result type for portage-metadata operations.

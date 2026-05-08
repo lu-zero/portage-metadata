@@ -254,19 +254,6 @@ impl<I: Interner> CacheEntry<I> {
         state.finish()
     }
 
-    /// Build a `CacheEntry` from an iterator of `(key, value)` string pairs.
-    ///
-    /// Avoids the text-format round-trip of `parse` — useful when building
-    /// entries from in-memory data (e.g., shell environment variables).
-    /// Unknown keys are silently ignored, matching `parse` behaviour.
-    pub fn from_kv_pairs<'a>(pairs: impl Iterator<Item = (&'a str, &'a str)>) -> Result<Self> {
-        let mut state = ParseState::new();
-        for (key, value) in pairs {
-            state.feed(key, value);
-        }
-        state.finish()
-    }
-
     /// Serialize this cache entry back to md5-cache format.
     ///
     /// Produces a string suitable for writing to a cache file.
@@ -389,6 +376,34 @@ impl CacheEntry<DefaultInterner> {
     pub fn parse(input: &str) -> Result<Self> {
         Self::parse_impl(input)
     }
+
+    /// Build a `CacheEntry` from an iterator of `(key, value)` string pairs.
+    ///
+    /// Avoids the text-format round-trip of `parse` — useful when building
+    /// entries from in-memory data (e.g., shell environment variables).
+    /// Unknown keys are silently ignored, matching `parse` behaviour.
+    pub fn from_kv_pairs<'a>(pairs: impl Iterator<Item = (&'a str, &'a str)>) -> Result<Self> {
+        let mut state = ParseState::new();
+        for (key, value) in pairs {
+            state.feed(key, value);
+        }
+        state.finish()
+    }
+}
+
+/// Check that a slot or subslot name is valid per PMS 3.1.3.
+///
+/// Slot names may contain `[A-Za-z0-9+_.-]` and must not begin with `-`, `.`, or `+`.
+fn is_valid_slot_name(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    let first = s.as_bytes()[0];
+    if first == b'-' || first == b'.' || first == b'+' {
+        return false;
+    }
+    s.bytes()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'_' | b'.' | b'-'))
 }
 
 /// Parse a SLOT value into a `Slot`.
@@ -397,8 +412,14 @@ fn parse_slot(s: &str) -> Result<Slot> {
         return Err(Error::MissingField("SLOT".to_string()));
     }
     if let Some((slot, subslot)) = s.split_once('/') {
+        if !is_valid_slot_name(slot) || !is_valid_slot_name(subslot) {
+            return Err(Error::InvalidSlot(s.to_string()));
+        }
         Ok(Slot::with_subslot(slot, subslot))
     } else {
+        if !is_valid_slot_name(s) {
+            return Err(Error::InvalidSlot(s.to_string()));
+        }
         Ok(Slot::new(s))
     }
 }
@@ -671,5 +692,46 @@ _eclasses_=foo\taabb\tbar\tccdd\tbaz\teeff
         assert_eq!(reparsed.metadata.inherit, vec!["foo", "bar"]);
         assert_eq!(reparsed.metadata.inherited, vec!["foo", "bar", "baz"]);
         assert_eq!(reparsed.eclasses, entry.eclasses);
+    }
+
+    #[test]
+    fn invalid_slot_starts_with_dash() {
+        let input = "DESCRIPTION=Test\nSLOT=-invalid\n";
+        assert!(CacheEntry::parse(input).is_err());
+    }
+
+    #[test]
+    fn invalid_slot_starts_with_dot() {
+        let input = "DESCRIPTION=Test\nSLOT=.invalid\n";
+        assert!(CacheEntry::parse(input).is_err());
+    }
+
+    #[test]
+    fn invalid_slot_starts_with_plus() {
+        let input = "DESCRIPTION=Test\nSLOT=+invalid\n";
+        assert!(CacheEntry::parse(input).is_err());
+    }
+
+    #[test]
+    fn valid_slot_with_special_chars() {
+        let input = "DESCRIPTION=Test\nSLOT=2.7-r1\n";
+        let entry = CacheEntry::parse(input).unwrap();
+        assert_eq!(entry.metadata.slot.slot, "2.7-r1");
+    }
+
+    #[test]
+    fn from_kv_pairs() {
+        let pairs = vec![
+            ("EAPI", "8"),
+            ("DESCRIPTION", "test package"),
+            ("SLOT", "0"),
+            ("KEYWORDS", "amd64"),
+            ("DEFINED_PHASES", "-"),
+        ];
+        let entry = CacheEntry::from_kv_pairs(pairs.into_iter()).unwrap();
+        assert_eq!(entry.metadata.eapi, Eapi::Eight);
+        assert_eq!(entry.metadata.description, "test package");
+        assert_eq!(entry.metadata.slot.slot, "0");
+        assert!(entry.metadata.keywords.len() == 1);
     }
 }
