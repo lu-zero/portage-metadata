@@ -26,7 +26,7 @@ cache (`metadata/md5-cache/`) stores pre-computed metadata in a simple
 - Parse and serialize `md5-cache` metadata files (PMS 14.3)
 - Full metadata types: EAPI, keywords, IUSE, SRC_URI, LICENSE, REQUIRED_USE, phases, etc.
 - Dependency parsing via [portage-atom](https://crates.io/crates/portage-atom)
-- [winnow](https://crates.io/crates/winnow) 0.7 parser combinators for expression types
+- [winnow](https://crates.io/crates/winnow) 1.0 parser combinators for expression types
 
 ## Installation
 
@@ -34,7 +34,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-portage-metadata = "0.1"
+portage-metadata = "0.4"
 ```
 
 ## Usage
@@ -80,7 +80,7 @@ assert_eq!(kw.stability, Stability::Testing);
 
 // IUSE
 let flag: IUse = "+ssl".parse().unwrap();
-assert_eq!(flag.name, "ssl");
+assert_eq!(flag.name(), "ssl");
 
 // Phases
 let phases = Phase::parse_line("compile configure install").unwrap();
@@ -93,7 +93,7 @@ assert_eq!(phases.len(), 3);
 |------|-------------|-------------|
 | `CacheEntry` | Full md5-cache file: metadata + MD5 + eclasses | 14.3 |
 | `EbuildMetadata` | All ebuild-defined metadata variables | 7.2 |
-| `Eapi` | EAPI version (0–8) with feature queries | 6 |
+| `Eapi` | EAPI version (0–9) with feature queries | 6 |
 | `Keyword` / `Stability` | Architecture keywords | 7.2 |
 | `IUse` / `IUseDefault` | USE flag declarations | 7.2 |
 | `Phase` | Defined phase functions | 9 |
