@@ -132,18 +132,6 @@ fn parse_use_conditional(input: &mut &str) -> ModalResult<RestrictExpr> {
 
 fn parse_restrict_entry(input: &mut &str) -> ModalResult<RestrictExpr> {
     dispatch! {peek(any);
-        '(' => cut_err(delimited('(', parse_restrict_entries, (multispace0, ')')))
-            .context(StrContext::Label("paren group"))
-            .map(|entries: Vec<RestrictExpr>| {
-                // Flatten bare paren groups — just return the first entry
-                // (shouldn't normally happen in RESTRICT, but handle gracefully)
-                if entries.len() == 1 {
-                    entries.into_iter().next().unwrap()
-                } else {
-                    // Multi-entry paren group: return first for simplicity
-                    RestrictExpr::Token("".to_string())
-                }
-            }),
         _ => alt((
             parse_use_conditional,
             parse_token,
@@ -152,8 +140,19 @@ fn parse_restrict_entry(input: &mut &str) -> ModalResult<RestrictExpr> {
     .parse_next(input)
 }
 
+fn parse_paren_or_entry(input: &mut &str) -> ModalResult<Vec<RestrictExpr>> {
+    dispatch! {peek(any);
+        '(' => cut_err(delimited('(', parse_restrict_entries, (multispace0, ')')))
+            .context(StrContext::Label("paren group")),
+        _ => parse_restrict_entry.map(|e| vec![e]),
+    }
+    .parse_next(input)
+}
+
 fn parse_restrict_entries(input: &mut &str) -> ModalResult<Vec<RestrictExpr>> {
-    repeat(0.., preceded(multispace0, parse_restrict_entry)).parse_next(input)
+    repeat(0.., preceded(multispace0, parse_paren_or_entry))
+        .map(|vecs: Vec<Vec<RestrictExpr>>| vecs.into_iter().flatten().collect())
+        .parse_next(input)
 }
 
 pub(crate) fn parse_restrict_string(input: &mut &str) -> ModalResult<Vec<RestrictExpr>> {
@@ -228,6 +227,35 @@ mod tests {
             entries: vec![RestrictExpr::Token("test".to_string())],
         };
         assert_eq!(entry.to_string(), "!test? ( test )");
+    }
+
+    #[test]
+    fn parse_bare_paren_single() {
+        let entries = RestrictExpr::parse("( test )").unwrap();
+        assert_eq!(entries, vec![RestrictExpr::Token("test".to_string())]);
+    }
+
+    #[test]
+    fn parse_bare_paren_multi() {
+        let entries = RestrictExpr::parse("( mirror test )").unwrap();
+        assert_eq!(
+            entries,
+            vec![
+                RestrictExpr::Token("mirror".to_string()),
+                RestrictExpr::Token("test".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_bare_paren_round_trip() {
+        let input = "( mirror test )";
+        let entries = RestrictExpr::parse(input).unwrap();
+        let displayed: Vec<String> = entries.iter().map(|e| e.to_string()).collect();
+        let rejoined = displayed.join(" ");
+        assert_eq!(rejoined, "mirror test");
+        let reparsed = RestrictExpr::parse(&rejoined).unwrap();
+        assert_eq!(entries, reparsed);
     }
 
     #[test]
