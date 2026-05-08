@@ -44,6 +44,27 @@ pub enum Phase {
 }
 
 impl Phase {
+    /// Return the short phase name as a `&'static str` (same as `Display`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Phase::PkgPretend => "pretend",
+            Phase::PkgSetup => "setup",
+            Phase::SrcUnpack => "unpack",
+            Phase::SrcPrepare => "prepare",
+            Phase::SrcConfigure => "configure",
+            Phase::SrcCompile => "compile",
+            Phase::SrcTest => "test",
+            Phase::SrcInstall => "install",
+            Phase::PkgPreinst => "preinst",
+            Phase::PkgPostinst => "postinst",
+            Phase::PkgPrerm => "prerm",
+            Phase::PkgPostrm => "postrm",
+            Phase::PkgConfig => "config",
+            Phase::PkgInfo => "info",
+            Phase::PkgNofetch => "nofetch",
+        }
+    }
+
     /// Parse a space-separated `DEFINED_PHASES` line into a list of phases.
     ///
     /// The special value `-` (used in the cache to mean "no phases defined")
@@ -102,25 +123,7 @@ impl FromStr for Phase {
 
 impl fmt::Display for Phase {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Use the short form (as it appears in DEFINED_PHASES)
-        let s = match self {
-            Phase::PkgPretend => "pretend",
-            Phase::PkgSetup => "setup",
-            Phase::SrcUnpack => "unpack",
-            Phase::SrcPrepare => "prepare",
-            Phase::SrcConfigure => "configure",
-            Phase::SrcCompile => "compile",
-            Phase::SrcTest => "test",
-            Phase::SrcInstall => "install",
-            Phase::PkgPreinst => "preinst",
-            Phase::PkgPostinst => "postinst",
-            Phase::PkgPrerm => "prerm",
-            Phase::PkgPostrm => "postrm",
-            Phase::PkgConfig => "config",
-            Phase::PkgInfo => "info",
-            Phase::PkgNofetch => "nofetch",
-        };
-        f.write_str(s)
+        f.write_str(self.as_str())
     }
 }
 

@@ -36,149 +36,180 @@ where
     pub eclasses: Vec<(String, String)>,
 }
 
-impl<I: Interner> CacheEntry<I> {
-    fn parse_impl(input: &str) -> Result<CacheEntry<I>> {
-        let mut eapi = None;
-        let mut description = None;
-        let mut slot = None;
-        let mut homepage = String::new();
-        let mut src_uri = String::new();
-        let mut license = String::new();
-        let mut keywords = String::new();
-        let mut iuse = String::new();
-        let mut required_use = String::new();
-        let mut restrict = String::new();
-        let mut properties = String::new();
-        let mut depend = String::new();
-        let mut rdepend = String::new();
-        let mut bdepend = String::new();
-        let mut pdepend = String::new();
-        let mut idepend = String::new();
-        let mut inherit = String::new();
-        let mut defined_phases = String::new();
-        let mut md5 = None;
-        let mut eclasses_raw = String::new();
+/// Accumulator for key-value pairs before building a `CacheEntry`.
+///
+/// Holds `&str` slices into the source data — no intermediate String
+/// allocations.  Call `finish()` to parse and build the typed entry.
+struct ParseState<'a> {
+    eapi: &'a str,
+    description: Option<&'a str>,
+    slot: Option<&'a str>,
+    homepage: &'a str,
+    src_uri: &'a str,
+    license: &'a str,
+    keywords: &'a str,
+    iuse: &'a str,
+    required_use: &'a str,
+    restrict: &'a str,
+    properties: &'a str,
+    depend: &'a str,
+    rdepend: &'a str,
+    bdepend: &'a str,
+    pdepend: &'a str,
+    idepend: &'a str,
+    inherit: &'a str,
+    defined_phases: &'a str,
+    md5: Option<&'a str>,
+    eclasses_raw: &'a str,
+}
 
-        for line in input.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            if let Some((key, value)) = line.split_once('=') {
-                match key {
-                    "EAPI" => eapi = Some(value.to_string()),
-                    "DESCRIPTION" => description = Some(value.to_string()),
-                    "SLOT" => slot = Some(value.to_string()),
-                    "HOMEPAGE" => homepage = value.to_string(),
-                    "SRC_URI" => src_uri = value.to_string(),
-                    "LICENSE" => license = value.to_string(),
-                    "KEYWORDS" => keywords = value.to_string(),
-                    "IUSE" => iuse = value.to_string(),
-                    "REQUIRED_USE" => required_use = value.to_string(),
-                    "RESTRICT" => restrict = value.to_string(),
-                    "PROPERTIES" => properties = value.to_string(),
-                    "DEPEND" => depend = value.to_string(),
-                    "RDEPEND" => rdepend = value.to_string(),
-                    "BDEPEND" => bdepend = value.to_string(),
-                    "PDEPEND" => pdepend = value.to_string(),
-                    "IDEPEND" => idepend = value.to_string(),
-                    "INHERIT" => inherit = value.to_string(),
-                    "DEFINED_PHASES" => defined_phases = value.to_string(),
-                    "_md5_" => md5 = Some(value.to_string()),
-                    "_eclasses_" => eclasses_raw = value.to_string(),
-                    _ => {} // Ignore unknown keys
-                }
-            }
+impl<'a> ParseState<'a> {
+    fn new() -> Self {
+        Self {
+            eapi: "",
+            description: None,
+            slot: None,
+            homepage: "",
+            src_uri: "",
+            license: "",
+            keywords: "",
+            iuse: "",
+            required_use: "",
+            restrict: "",
+            properties: "",
+            depend: "",
+            rdepend: "",
+            bdepend: "",
+            pdepend: "",
+            idepend: "",
+            inherit: "",
+            defined_phases: "",
+            md5: None,
+            eclasses_raw: "",
         }
+    }
 
-        let eapi_val = match eapi {
-            Some(ref s) => s
+    fn feed(&mut self, key: &str, value: &'a str) {
+        match key {
+            "EAPI" => self.eapi = value,
+            "DESCRIPTION" => self.description = Some(value),
+            "SLOT" => self.slot = Some(value),
+            "HOMEPAGE" => self.homepage = value,
+            "SRC_URI" => self.src_uri = value,
+            "LICENSE" => self.license = value,
+            "KEYWORDS" => self.keywords = value,
+            "IUSE" => self.iuse = value,
+            "REQUIRED_USE" => self.required_use = value,
+            "RESTRICT" => self.restrict = value,
+            "PROPERTIES" => self.properties = value,
+            "DEPEND" => self.depend = value,
+            "RDEPEND" => self.rdepend = value,
+            "BDEPEND" => self.bdepend = value,
+            "PDEPEND" => self.pdepend = value,
+            "IDEPEND" => self.idepend = value,
+            "INHERIT" => self.inherit = value,
+            "DEFINED_PHASES" => self.defined_phases = value,
+            "_md5_" => self.md5 = Some(value),
+            "_eclasses_" => self.eclasses_raw = value,
+            _ => {}
+        }
+    }
+
+    fn finish<I: Interner>(self) -> Result<CacheEntry<I>> {
+        let eapi_val = if self.eapi.is_empty() {
+            Eapi::Zero
+        } else {
+            self.eapi
                 .parse::<Eapi>()
-                .map_err(|_| Error::InvalidEapi(s.clone()))?,
-            None => Eapi::Zero, // Default EAPI is 0
+                .map_err(|_| Error::InvalidEapi(self.eapi.to_string()))?
         };
 
-        let description_val =
-            description.ok_or_else(|| Error::MissingField("DESCRIPTION".to_string()))?;
+        let description_val = self
+            .description
+            .ok_or_else(|| Error::MissingField("DESCRIPTION".to_string()))?
+            .to_string();
 
-        let slot_val = match slot {
-            Some(ref s) => parse_slot(s)?,
+        let slot_val = match self.slot {
+            Some(s) => parse_slot(s)?,
             None => return Err(Error::MissingField("SLOT".to_string())),
         };
 
-        let homepage_val: Vec<String> = if homepage.is_empty() {
+        let homepage_val: Vec<String> = if self.homepage.is_empty() {
             Vec::new()
         } else {
-            homepage.split_whitespace().map(|s| s.to_string()).collect()
+            self.homepage
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect()
         };
 
-        let src_uri_val = if src_uri.is_empty() {
+        let src_uri_val = if self.src_uri.is_empty() {
             Vec::new()
         } else {
-            SrcUriEntry::parse(&src_uri)?
+            SrcUriEntry::parse(self.src_uri)?
         };
 
-        let license_val = if license.is_empty() {
+        let license_val = if self.license.is_empty() {
             None
         } else {
-            Some(LicenseExpr::parse(&license)?)
+            Some(LicenseExpr::parse(self.license)?)
         };
 
-        let keywords_val: Vec<Keyword<I>> = if keywords.is_empty() {
+        let keywords_val: Vec<Keyword<I>> = if self.keywords.is_empty() {
             Vec::new()
         } else {
-            keywords
+            self.keywords
                 .split_whitespace()
                 .map(|token| Keyword::parse(token))
                 .collect::<Result<_>>()?
         };
 
-        let iuse_val: Vec<IUse<I>> = if iuse.is_empty() {
+        let iuse_val: Vec<IUse<I>> = if self.iuse.is_empty() {
             Vec::new()
         } else {
-            iuse.split_whitespace()
+            self.iuse
+                .split_whitespace()
                 .map(|token| IUse::parse(token))
                 .collect::<Result<_>>()?
         };
 
-        let required_use_val = if required_use.is_empty() {
+        let required_use_val = if self.required_use.is_empty() {
             None
         } else {
-            Some(RequiredUseExpr::parse(&required_use)?)
+            Some(RequiredUseExpr::parse(self.required_use)?)
         };
 
-        let restrict_val = if restrict.is_empty() {
+        let restrict_val = if self.restrict.is_empty() {
             Vec::new()
         } else {
-            RestrictExpr::parse(&restrict)?
+            RestrictExpr::parse(self.restrict)?
         };
 
-        let properties_val = if properties.is_empty() {
+        let properties_val = if self.properties.is_empty() {
             Vec::new()
         } else {
-            RestrictExpr::parse(&properties)?
+            RestrictExpr::parse(self.properties)?
         };
 
-        let depend_val = parse_dep_field(&depend)?;
-        let rdepend_val = parse_dep_field(&rdepend)?;
-        let bdepend_val = parse_dep_field(&bdepend)?;
-        let pdepend_val = parse_dep_field(&pdepend)?;
-        let idepend_val = parse_dep_field(&idepend)?;
+        let depend_val = parse_dep_field(self.depend)?;
+        let rdepend_val = parse_dep_field(self.rdepend)?;
+        let bdepend_val = parse_dep_field(self.bdepend)?;
+        let pdepend_val = parse_dep_field(self.pdepend)?;
+        let idepend_val = parse_dep_field(self.idepend)?;
 
-        let eclasses = parse_eclasses(&eclasses_raw);
+        let eclasses = parse_eclasses(self.eclasses_raw);
 
-        let inherit_val: Vec<String> = if inherit.is_empty() {
-            Vec::new()
-        } else {
-            inherit.split_whitespace().map(|s| s.to_string()).collect()
-        };
+        let inherit_val: Vec<String> = self
+            .inherit
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
 
         // PMS 14.3: md5-dict format excludes the INHERITED key; the
         // transitive eclass list is carried by _eclasses_ instead.
         let inherited_val: Vec<String> = eclasses.iter().map(|(name, _)| name.clone()).collect();
 
-        let defined_phases_val = Phase::parse_line(&defined_phases)?;
+        let defined_phases_val = Phase::parse_line(self.defined_phases)?;
 
         Ok(CacheEntry {
             metadata: EbuildMetadata {
@@ -202,9 +233,38 @@ impl<I: Interner> CacheEntry<I> {
                 inherited: inherited_val,
                 defined_phases: defined_phases_val,
             },
-            md5,
+            md5: self.md5.map(|s| s.to_string()),
             eclasses,
         })
+    }
+}
+
+impl<I: Interner> CacheEntry<I> {
+    fn parse_impl(input: &str) -> Result<CacheEntry<I>> {
+        let mut state = ParseState::new();
+        for line in input.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Some((key, value)) = line.split_once('=') {
+                state.feed(key, value);
+            }
+        }
+        state.finish()
+    }
+
+    /// Build a `CacheEntry` from an iterator of `(key, value)` string pairs.
+    ///
+    /// Avoids the text-format round-trip of `parse` — useful when building
+    /// entries from in-memory data (e.g., shell environment variables).
+    /// Unknown keys are silently ignored, matching `parse` behaviour.
+    pub fn from_kv_pairs<'a>(pairs: impl Iterator<Item = (&'a str, &'a str)>) -> Result<Self> {
+        let mut state = ParseState::new();
+        for (key, value) in pairs {
+            state.feed(key, value);
+        }
+        state.finish()
     }
 
     /// Serialize this cache entry back to md5-cache format.
@@ -374,8 +434,11 @@ fn format_phases(phases: &[Phase]) -> String {
     if phases.is_empty() {
         "-".to_string()
     } else {
-        let strs: Vec<String> = phases.iter().map(|p| p.to_string()).collect();
-        strs.join(" ")
+        phases
+            .iter()
+            .map(|p| p.as_str())
+            .collect::<Vec<&str>>()
+            .join(" ")
     }
 }
 
