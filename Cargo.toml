@@ -1,6 +1,6 @@
 [package]
 name = "portage-metadata"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.88"
 authors = ["Luca Barbato <lu_zero@gentoo.org>"]
@@ -11,7 +11,7 @@ keywords = ["gentoo", "portage", "ebuild", "pms", "metadata"]
 categories = ["parser-implementations", "development-tools"]
 
 [dependencies]
-portage-atom = "0.6.0"
+portage-atom = "0.7"
 winnow = { version = "1.0", features = ["ascii"] }
 thiserror = "2"
 
